@@ -60,10 +60,7 @@ Value list_ref(Context &c, Value args) {
             return item;
     }
 
-    if (is_nil(item))
-        return c.error("list-ref: Index out of range");
-
-    return c.error("list-ref: Invalid list");
+    return c.error("list-ref: Index out of range");
 }
 
 Value length(Context &c, Value args) {
@@ -98,7 +95,7 @@ Value quote(Context &c, Value env, Value args, bool tail_position) {
     (void)env;
     (void)tail_position;
 
-    return args;
+    return car(args);
 }
 
 Value define(Context &c, Value env, Value args, bool tail_position) {
@@ -165,6 +162,9 @@ void define_all(Context &c) {
     c.define_builtin("-", op_sub);
     c.define_builtin("*", op_mul);
     c.define_builtin("/", op_div);
+
+    c.define_builtin("list-ref", list_ref);
+    c.define_builtin("length", length);
 }
 
 } }

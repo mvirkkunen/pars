@@ -110,7 +110,7 @@ class Context {
             source.unget();
 
             return false;
-        } if (c == '(') {
+        } else if (c == '(') {
             Value tail;
             result = nil;
 
@@ -137,6 +137,13 @@ class Context {
                 return false;
             }
 
+            return true;
+        } else if (c == '\'') {
+            Value expr;
+            if (!parse(source, expr, level))
+                return false;
+
+            result = cons(sym("quote"), cons(expr, nil));
             return true;
         } else {
             bool numeric = true;
@@ -481,7 +488,7 @@ public:
                 break;
 
             case Type::str:
-                printf("%s", str_val(val));
+                printf("\"%s\"", str_val(val));
         }
 
         if (newline)
