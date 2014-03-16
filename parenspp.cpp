@@ -1,16 +1,22 @@
-#include <vector>
 #include <map>
 #include <string>
-#include <functional>
 #include <iostream>
 #include <sstream>
+#include <cstdarg>
 
 #include "allocator.hpp"
 
 namespace pars {
 
+namespace builtins { void define_all(Context &c); }
+
+class Context;
+
+using BuiltinFunc = Value (*)(Context &ctx, Value args);
+using SyntaxFunc = Value (*)(Context &, Value, Value, bool);
+
 class Context {
-    std::map<int, std::function<Value(Context &, Value, Value, bool)>> syntax;
+    std::map<int, SyntaxFunc> syntax;
     Allocator alloc;
 
     Value cur_func;
@@ -42,53 +48,11 @@ class Context {
         return result;
     }
 
-    Value eval(Value env, Value expr, bool tail_position = false) {
-        switch (type_of(expr)) {
-            case Type::nil:
-            case Type::num:
-            case Type::func:
-            case Type::builtin:
-                return expr;
-        }
-
-        if (type_of(expr) == Type::sym) {
-            return env_get(env, expr);
-        } else if (type_of(expr) == Type::cons) {
-            if (is_sym(car(expr))) {
-                auto it = syntax.find(sym_id(car(expr)));
-                if (it != syntax.end())
-                    return it->second(*this, env, cdr(expr), tail_position);
-            }
-
-            expr = eval_list(env, expr);
-            if (failing)
-                return nil;
-
-            Value func = car(expr), args = cdr(expr);
-
-            if (type_of(func) == Type::func) {
-                if (tail_position && func == cur_func) {
-                    will_tail_call = true;
-                    return args;
-                }
-
-                return apply(func, args);
-            }
-
-            if (type_of(func) == Type::builtin)
-                return alloc.builtins[indexed_val(func)](*this, args);
-
-            return error("eval: Invalid application");
-        }
-
-        return error("eval: This shouldn't happen");
-    }
-
     Value apply(Value func, Value args) {
         Value prev_cur_func = cur_func;
         cur_func = func;
 
-        //std::cout << "Stack depth: " << (intptr_t)&prev_cur_func << "\n";
+        //fprintf(stderr, "Stack depth: %10llu\n", (unsigned long long)&prev_cur_func);
 
         Value value = func_val(func);
 
@@ -109,8 +73,11 @@ class Context {
         Value result = nil;
         for (Value e = body; is_cons(e); e = cdr(e)) {
             result = eval(func_env, car(e), is_nil(cdr(e)));
-            if (failing)
+
+            if (failing) {
+                fail_message = "In " + alloc.func_name(func) + ":\n" + fail_message;
                 return nil;
+            }
 
             if (will_tail_call) {
                 will_tail_call = false;
@@ -198,11 +165,68 @@ class Context {
         }
     }
 
+    void reset() {
+        cur_func = nil;
+        will_tail_call = false;
+        failing = false;
+        fail_message = "";
+    }
+
+    bool extract_one(Value arg, char type, void *dest) {
+        switch (type) {
+            case 'l': {
+                Value item = arg;
+                bool first = true;
+                for (; is_cons(item); item = cdr(item)) {
+                    if (!first && item == arg) {
+                        error("Value is not a list (circular reference)");
+                        return false;
+                    }
+
+                    first = false;
+                }
+
+                if (is_nil(item)) {
+                    *(Value *)dest = arg;
+                    return true;
+                }
+
+                error("Value is not a list");
+                return false;
+            }
+            case 'n': {
+                if (!is_num(arg)) {
+                    error("Value is not a number");
+                    return false;
+                }
+
+                *(int *)dest = num_val(arg);
+                return true;
+            }
+        }
+
+        error(std::string("Bad extraction: '") + type + "'");
+        return false;
+    }
+
+public:
+
+    bool is_failing() { return failing; }
+
+    Value cons(Value car, Value cdr) { return alloc.cons(car, cdr); }
+    Value num(int num) { return alloc.num(num); }
+    Value sym(std::string name) { return alloc.sym(name); }
+    Value func(Value env, Value arg_names, Value body, Value name) {
+        return alloc.func(env, arg_names, body, name);
+    }
+
+    std::string sym_name(Value sym) { return alloc.sym_name(sym); }
+
     void env_define(Value env, Value key, Value value) {
         Value vars = cdr(env);
 
-        for (; type_of(vars) == Type::cons; vars = cdr(vars)) {
-            if (type_of(car(vars)) == Type::cons && car(car(vars)) == key) {
+        for (; is_cons(vars); vars = cdr(vars)) {
+            if (is_cons(car(vars)) && car(car(vars)) == key) {
                 set_cdr(car(vars), value);
                 return;
             }
@@ -214,66 +238,62 @@ class Context {
     Value env_get(Value env, Value key) {
         Value vars = cdr(env);
 
-        for (; type_of(vars) == Type::cons; vars = cdr(vars)) {
-            if (type_of(car(vars)) == Type::cons && car(car(vars)) == key)
+        for (; is_cons(vars); vars = cdr(vars)) {
+            if (is_cons(car(vars)) && car(car(vars)) == key)
                 return cdr(car(vars));
         }
 
-        if (type_of(car(env)) == Type::cons)
+        if (is_cons(car(env)))
             return env_get(car(env), key);
 
-        return error("Not defined: '" + sym_name(key) + "'");
+        return error(std::string("Not defined: '") + sym_name(key) + "'");
     }
 
-    void define_math_builtin(std::string name, std::function<int(int, int)> func) {
-        define_builtin(name, [name, func](Context &c, Value args) {
-            if (is_nil(args))
-                return c.num(0);
+    Value eval(Value env, Value expr, bool tail_position = false) {
+        switch (type_of(expr)) {
+            case Type::nil:
+            case Type::num:
+            case Type::func:
+            case Type::builtin:
+            case Type::str:
+                return expr;
 
-            int accu = 0;
+            case Type::sym:
+                return env_get(env, expr);
 
-            Value v = car(args);
-            if (type_of(v) == Type::num)
-                accu = num_val(v);
+            case Type::cons:
+            {
+                if (is_sym(car(expr))) {
+                    auto it = syntax.find(sym_id(car(expr)));
+                    if (it != syntax.end())
+                        return it->second(*this, env, cdr(expr), tail_position);
+                }
 
-            for (args = cdr(args); is_cons(args); args = cdr(args)) {
-                v = car(args);
+                expr = eval_list(env, expr);
+                if (failing)
+                    return nil;
 
-                if (type_of(v) == Type::num)
-                    accu = func(accu, num_val(v));
+                Value func = car(expr), args = cdr(expr);
+
+                if (type_of(func) == Type::func) {
+                    if (tail_position && func == cur_func) {
+                        will_tail_call = true;
+                        return args;
+                    }
+
+                    return apply(func, args);
+                }
+
+                if (type_of(func) == Type::builtin) {
+                    return builtin_val(func)(*this, args);
+                }
+
+                return error("eval: Invalid application");
             }
+        }
 
-            return c.num(accu);
-        });
+        return error("eval: This shouldn't happen");
     }
-
-    void define_cmp_builtin(std::string name, std::function<bool(int, int)> func) {
-        define_builtin(name, [func](Context &c, Value args) {
-            if (!is_cons(args) || !is_cons(cdr(args)))
-                return nil;
-
-            Value a = car(args), b = car(cdr(args));
-
-            return (is_num(a) && is_num(b) && func(num_val(a), num_val(b))) ? c.num(1) : nil;
-        });
-    }
-
-    void reset() {
-        cur_func = nil;
-        will_tail_call = false;
-        failing = false;
-        fail_message = "";
-    }
-
-    Value make_func(Value env, Value arg_names, Value body) { return alloc.make_func(env, arg_names, body); }
-
-public:
-
-    Value cons(Value car, Value cdr) { return alloc.cons(car, cdr); }
-    Value num(int num) { return alloc.num(num); }
-    Value sym(std::string name) { return alloc.sym(name); }
-
-    std::string sym_name(Value sym) { alloc.sym_name(sym); }
 
     Value error(std::string msg) {
         failing = true;
@@ -282,20 +302,100 @@ public:
         return nil;
     }
 
-    void define_builtin(std::string name, std::function<Value(Context &, Value)> func) {
-        env_define(root_env, sym(name), alloc.make_builtin(func));
+    // Format:
+    //  n = number -> int n
+    //  l = list (will validate) -> Value list
+    //  * = extract next token as array -> type *arr, int count
+    bool extract(Value args, const char *format, ...) {
+        va_list va;
+        va_start(va, format);
+
+        const char *fp = format;
+        Value arg = args;
+
+        for (; is_cons(arg) && *fp; arg = cdr(arg), fp++) {
+            char type = *fp;
+
+            switch (type) {
+                case '*': {
+                    fp++;
+                    type = *fp;
+
+                    size_t value_size;
+
+                    switch (type) {
+                        case 'n': value_size = sizeof(int); break;
+                        default:
+                            error(std::string("Bad array extraction: '") + type + "'");
+                            goto out;
+                    }
+
+                    Value list;
+                    if (!extract_one(arg, 'l', &list))
+                        goto out;
+
+                    int count = 0;
+                    for (Value item = list; is_cons(item); item = cdr(item))
+                        count++;
+
+                    char *result = (char *)malloc(count * value_size);
+
+                    int index = 0;
+                    for (Value item = list; is_cons(item); item = cdr(item)) {
+                        if (!extract_one(car(item), type, result + (index * value_size))) {
+                            printf("single ext fail\n");
+                            free(result);
+                            goto out;
+                        }
+
+                        index++;
+                    }
+
+                    *va_arg(va, void **) = result;
+                    *va_arg(va, int *) = count;
+
+                    arg = nil;
+                    fp++;
+
+                    // Consumed all arguments
+                    goto out;
+                }
+
+                default:
+                    if (!extract_one(car(arg), type, va_arg(va, void *)))
+                        goto out;
+            }
+        }
+
+    out:
+        va_end(va);
+
+        if (*fp) {
+            error("Too few arguments.");
+            return false;
+        }
+
+        if (!is_nil(arg)) {
+            error("Too many arguments.");
+            return false;
+        }
+
+        return true;
     }
 
-    void define_syntax(std::string name, std::function<Value(Context &, Value, Value, bool)> func) {
+    void define_builtin(std::string name, BuiltinFunc func) {
+        env_define(root_env, sym(name), alloc.builtin(func));
+    }
+
+    void define_syntax(std::string name, SyntaxFunc func) {
         syntax[sym_id(sym(name))] = func;
     }
 
-    Value execute(std::string code) {
+    Value exec(std::string code, bool report_errors = false) {
         Value result = nil;
 
         std::istringstream source(code);
 
-        Value body;
         while (true) {
             reset();
 
@@ -306,8 +406,12 @@ public:
             reset();
             result = eval(root_env, body);
 
-            if (failing)
+            if (failing) {
+                if (report_errors)
+                    std::cerr << "Error: " << fail_message << std::endl;
+
                 break;
+            }
         }
 
         return result;
@@ -323,52 +427,49 @@ public:
             if (source == "")
                 break;
 
-            Value result = execute(source);
+            Value result = exec(source, true);
 
             if (!is_nil(result))
                 print(result);
-
-            if (failing)
-                std::cout << "Error: " << fail_message << std::endl;
         }
     }
 
     void print(Value val, bool newline = true) {
         switch (type_of(val)) {
             case Type::nil:
-                std::cout << "'()";
+                printf("'()");
                 break;
 
             case Type::cons:
-                std::cout << "(";
+                printf("(");
 
                 while (true) {
                     print(car(val), false);
 
                     if (type_of(cdr(val)) != Type::cons) {
                         if (type_of(cdr(val)) != Type::nil) {
-                            std::cout << " . ";
+                            printf(" . ");
                             print(cdr(val), false);
                         }
 
                         break;
                     }
 
-                    std::cout << " ";
+                    printf(" ");
 
                     val = cdr(val);
                 }
 
-                std::cout << ")";
+                printf(")");
 
                 break;
 
             case Type::num:
-                std::cout << num_val(val);
+                printf("%d", num_val(val));
                 break;
 
             case Type::func:
-                std::cout << "#FUNC";
+                printf("#FUNC");
                 break;
 
             case Type::sym:
@@ -376,12 +477,15 @@ public:
                 break;
 
             case Type::builtin:
-                std::cout << "#BUILTIN";
+                printf("#BUILTIN");
                 break;
+
+            case Type::str:
+                printf("%s", str_val(val));
         }
 
         if (newline)
-            std::cout << std::endl;
+            printf("\n");
     }
 
     Context() : alloc(1024) {
@@ -389,86 +493,19 @@ public:
 
         root_env = cons(nil, nil);
 
-        define_syntax("define", [](Context &c, Value env, Value args, bool tail_position) {
-            if (!is_cons(args))
-                return nil;
-
-            Value name = car(args);
-            args = cdr(args);
-
-            // (define x 2)
-            if (is_sym(name))
-                c.env_define(env, name, c.eval(env, car(args)));
-
-            // (define (double x) (* x x))
-            if (is_cons(name)) {
-                c.env_define(
-                    env,
-                    car(name),
-                    c.make_func(
-                        env,
-                        cdr(name),
-                        args));
-            }
-
-            return nil;
-        });
-
-        // (lambda (x y) body)
-        define_syntax("lambda", [](Context &c, Value env, Value args, bool tail_position) {
-            return c.make_func(env,
-                car(args),
-                cdr(args));
-        });
-
-        // (if test then else)
-        define_syntax("if", [](Context &c, Value env, Value args, bool tail_position) {
-            return is_truthy(c.eval(env, car(args)))
-                ? c.eval(env, car(cdr(args)), tail_position)
-                : c.eval(env, car(cdr(cdr(args))), tail_position);
-        });
-
-        define_syntax("quote", [](Context &c, Value env, Value args, bool tail_position) {
-            return car(args);
-        });
-
-        define_builtin("print", [](Context &c, Value args) {
-            for (; type_of(args) == Type::cons; args = cdr(args)) {
-                c.print(car(args), false);
-                std::cout << " ";
-            }
-
-            std::cout << std::endl;
-
-            return nil;
-        });
-
-        define_math_builtin("+", [](int a, int b) { return a + b; });
-        define_math_builtin("-", [](int a, int b) { return a - b; });
-        define_math_builtin("*", [](int a, int b) { return a * b; });
-        define_math_builtin("/", [](int a, int b) { return a / b; });
-
-        define_cmp_builtin("=", [](int a, int b) { return a == b; });
-        define_cmp_builtin(">", [](int a, int b) { return a > b; });
+        builtins::define_all(*this);
     }
 };
 
 }
 
+// #yolo
+#include "builtins.cpp"
+
 int main() {
     pars::Context ctx;
 
-    //ctx.execute("(define x 2) (define (double x) (print (quote (x is)) x (quote (let's double it))) (* x 2))");
-    //ctx.execute("(define x 2) (define (double x) (* x 2))");
-
-    //ctx.print(ctx.execute("(double 5)"));
-    //ctx.print(ctx.execute("(double x)"));
-    //ctx.print(ctx.execute("((lambda (x) (+ x 1)) 2)"));
-
-    //ctx.print(ctx.execute("(if (= 1 1) (quote yep) (quote nope))"));
-    //ctx.print(ctx.execute("(if (= 1 2) (quote yep) (quote nope))"));
-
-    ctx.execute("(define (fact1 x) \
+    ctx.exec("(define (fact1 x) \
   (if (= x 0) 1 \
       (* x (fact1 (- x 1))))) \
 \
@@ -476,10 +513,10 @@ int main() {
   (define (fact-tail x accum) \
     (if (= x 0) accum \
         (fact-tail (- x 1) (* x accum)))) \
-  (fact-tail x 1))");
+  (fact-tail x 1))", true);
 
-    ctx.print(ctx.execute("(fact1 10)"));
-    ctx.print(ctx.execute("(fact2 10)"));
+    ctx.print(ctx.exec("(fact1 10)", true));
+    ctx.print(ctx.exec("(fact2 10)", true));
 
     ctx.repl();
 }

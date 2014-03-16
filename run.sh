@@ -1,1 +1,1 @@
-g++ -std=c++11 parenspp.cpp -o pars && ./pars
+g++ -std=c++11 -g -Wall -Wextra -Werror parenspp.cpp -o pars && ./pars
