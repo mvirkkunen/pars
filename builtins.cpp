@@ -76,13 +76,13 @@ Value length(Context &c, Value args) {
 }
 
 Value print(Context &c, Value args) {
-    Value list;
-    if (!c.extract(args, "l", &list))
-        return nil;
-
-    for (Value item = list; is_cons(item); item = cdr(item)) {
-        c.print(car(item), false);
-        printf(" ");
+    for (Value item = args; is_cons(item); item = cdr(item)) {
+        if (type_of(car(item)) == Type::str) {
+            printf("%s", str_val(car(item)));
+        } else {
+            c.print(car(item), false);
+            printf(" ");
+        }
     }
 
     printf("\n");
@@ -153,6 +153,8 @@ void define_all(Context &c) {
     c.define_syntax("define", define);
     c.define_syntax("lambda", lambda);
     c.define_syntax("if", if_);
+
+    c.define_builtin("print", print);
 
     c.define_builtin("=", op_eq);
     c.define_builtin("<", op_lt);

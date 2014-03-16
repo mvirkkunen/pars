@@ -225,7 +225,7 @@ public:
         return tagged(v);
     }
 
-    Value str(char *s) {
+    Value str(const char *s) {
         char *copy = (char *)malloc((strlen(s) + 1) * sizeof(char));
         std::strcpy(copy, s);
 

@@ -145,6 +145,19 @@ class Context {
 
             result = cons(sym("quote"), cons(expr, nil));
             return true;
+        } else if (c == '"') {
+            std::string buf;
+
+            while (source.get(c) && c != '"')
+                buf += c;
+
+            if (c == '"') {
+                result = str(buf.c_str());
+                return true;
+            }
+
+            result = error("Missing closing '\"'");
+            return false;
         } else {
             bool numeric = true;
             std::string buf;
@@ -226,6 +239,7 @@ public:
     Value func(Value env, Value arg_names, Value body, Value name) {
         return alloc.func(env, arg_names, body, name);
     }
+    Value str(const char *s) { return alloc.str(s); }
 
     std::string sym_name(Value sym) { return alloc.sym_name(sym); }
 
