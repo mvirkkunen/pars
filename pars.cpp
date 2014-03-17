@@ -1,6 +1,7 @@
 #include <map>
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <cstdarg>
 
@@ -411,6 +412,19 @@ Value Context::exec(std::string code, bool report_errors) {
     }
 
     return result;
+}
+
+Value Context::exec_file(std::string path, bool report_errors) {
+    std::ifstream file(path);
+    file.seekg(0, std::ios::end);
+
+    size_t size = file.tellg();
+    std::string buf(size, ' ');
+    file.seekg(0);
+
+    file.read(&buf[0], size);
+
+    return exec(buf, report_errors);
 }
 
 void Context::repl() {

@@ -21,7 +21,6 @@ Value Allocator::alloc() {
     return allocated;
 }
 
-
 Allocator::Allocator(int size) : size(size), free(size) {
     pool = new ValueCell[size];
     for (int i = 0; i < size - 1; i++)

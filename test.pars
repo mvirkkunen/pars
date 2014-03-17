@@ -1,0 +1,12 @@
+(define (fact1 x)
+  (if (= x 0) 1
+      (* x (fact1 (- x 1)))))
+
+(define (fact2 x)
+  (define (fact-tail x accum)
+    (if (= x 0) accum
+        (fact-tail (- x 1) (* x accum))))
+  (fact-tail x 1))
+
+(print "factorial of 10, recursive: " (fact1 10))
+(print "factorial of 10, iterative: " (fact2 10))

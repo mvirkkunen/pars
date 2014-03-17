@@ -67,6 +67,7 @@ public:
     void define_syntax(std::string name, SyntaxFunc func);
 
     Value exec(std::string code, bool report_errors = false);
+    Value exec_file(std::string path, bool report_errors = false);
     void repl();
     void print(Value val, bool newline = true);
 };

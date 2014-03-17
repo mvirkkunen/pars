@@ -1,22 +1,14 @@
 #include "pars.hpp"
 
-int main() {
+int main(int argc, char **argv) {
     pars::Context ctx;
 
-    ctx.exec(R"(
-(define (fact1 x)
-  (if (= x 0) 1
-      (* x (fact1 (- x 1)))))
+    if (argc > 1) {
+        for (int i = 1; i < argc; i++)
+            ctx.exec_file(argv[i], true);
+    } else {
+        ctx.repl();
+    }
 
-(define (fact2 x)
-  (define (fact-tail x accum)
-    (if (= x 0) accum
-        (fact-tail (- x 1) (* x accum))))
-  (fact-tail x 1))
-    )", true);
-
-    ctx.print(ctx.exec("(fact1 10)", true));
-    ctx.print(ctx.exec("(fact2 10)", true));
-
-    ctx.repl();
+    return 0;
 }
