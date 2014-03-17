@@ -1,3 +1,5 @@
+#include "pars.hpp"
+
 namespace pars { namespace builtins {
 
 #define MAKE_MATH_BUILTIN(NAME, OP) \
