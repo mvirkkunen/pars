@@ -25,8 +25,10 @@ Value Allocator::alloc() {
 
 Allocator::Allocator(int size) : size(size), free(size) {
     pool = new ValueCell[size];
-    for (int i = 0; i < size - 1; i++)
+    for (int i = 0; i < size - 1; i++) {
+        pool[i].tag = 0x7; // nil tag
         pool[i].tagged.next_free = &pool[i + 1];
+    }
 
     first_free = &pool[0];
 }
@@ -68,14 +70,13 @@ const char *Allocator::sym_name(Value sym) {
 
 Value Allocator::func(Value env, Value arg_names, Value body, Value name) {
     Value v = alloc();
-    v->tag = Type::func;
     v->tagged.value =
         cons(env,
         cons(arg_names,
         cons(body,
         cons(name, nil))));
 
-    return tagged(v);
+    return tag(v, Type::func);
 }
 
 const char *Allocator::func_name(Value func) {
@@ -89,10 +90,9 @@ const char *Allocator::func_name(Value func) {
 
 Value Allocator::builtin(BuiltinFunc func) {
     Value v = alloc();
-    v->tag = Type::builtin;
     v->tagged.builtin_func = func;
 
-    return tagged(v);
+    return tag(v, Type::builtin);
 }
 
 Value Allocator::str(const char *s) {
@@ -100,10 +100,9 @@ Value Allocator::str(const char *s) {
     strcpy(copy, s);
 
     Value v = alloc();
-    v->tag = Type::str;
     v->tagged.str = copy;
 
-    return tagged(v);
+    return tag(v, Type::str);
 }
 
 }

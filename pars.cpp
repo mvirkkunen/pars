@@ -475,7 +475,7 @@ void Context::repl() {
 void Context::print(Value val, bool newline) {
     switch (type_of(val)) {
         case Type::nil:
-            printf("'()");
+            printf("()");
             break;
 
         case Type::cons:

@@ -15,8 +15,9 @@ using BuiltinFunc = Value (*)(Context &ctx, Value args);
 
 enum class Type : intptr_t  {
     nil = 0,     // 0 pointer
-    // tagged:      xx11
+    // tagged:      x011
     // Rest of bits is a pointer to tagged value cell
+    // Lowest 3 bits of tag in cell = always 1 to distinguish from actual pointer
     func = 1,    // tagged.value = (list env arg_names body name)
     builtin = 2, // tagged.builtin_func = ptr to func
     str = 3,     // tagged.string = c-string
@@ -29,7 +30,7 @@ enum class Type : intptr_t  {
 struct alignas(sizeof(Value) * 2) ValueCell {
     union {
         struct {
-            Type tag;
+            intptr_t tag;
             union {
                 Value value;
                 BuiltinFunc builtin_func;
@@ -56,7 +57,7 @@ inline int num_val(Value num) {
 }
 
 inline Value tagged_val(Value val) {
-    return (Value)((intptr_t)val & ~(intptr_t)0x3);
+    return (Value)((intptr_t)val - 3);
 }
 
 inline Value func_val(Value func) {
@@ -89,7 +90,7 @@ inline Type type_of(Value val) {
     else if (tag == 0x2)
         return Type::sym;
 
-    return tagged_val(val)->tag;
+    return (Type)(tagged_val(val)->tag >> 3);
 }
 
 inline const char *type_name(Type t) {
@@ -123,7 +124,9 @@ class Allocator {
 
     Value alloc();
 
-    Value tagged(Value val) {
+    Value tag(Value val, Type tag) {
+        val->tag = ((intptr_t)tag << 3) | 0x7;
+
         return (Value)((intptr_t)val | 0x3);
     }
 
