@@ -449,6 +449,7 @@ Value Context::exec_file(char *path, bool report_errors, bool print_results) {
 
     char *code = (char *)malloc(length + 1);
     fread(code, 1, length, f);
+    code[length] = '\0';
 
     fclose(f);
 
