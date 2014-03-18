@@ -1,32 +1,28 @@
 #pragma once
 
-#include <map>
-#include <string>
-#include <iostream>
-#include <sstream>
-#include <cstdarg>
-
+#include <vector>
 #include "values.hpp"
 
 namespace pars {
 
-class Context;
-
-namespace builtins { void define_all(Context &c); }
-
 using SyntaxFunc = Value (*)(Context &, Value, Value, bool);
 
 class Context {
-    std::map<int, SyntaxFunc> syntax;
+    struct SyntaxEntry {
+        Value sym;
+        SyntaxFunc func;
+    };
+
+    std::vector<SyntaxEntry> syntax;
     Allocator alloc;
+
+    Value root_env;
 
     Value cur_func;
     bool will_tail_call;
 
-    bool failing;
-    std::string fail_message;
-
-    Value root_env;
+    bool _failing;
+    char _fail_message[1024];
 
     void reset();
 
@@ -34,24 +30,25 @@ class Context {
 
     Value apply(Value func, Value args);
 
-    bool parse(std::istream &source, Value &result, int level = 0);
+    bool parse(char **source, Value &result);
 
     bool extract_one(Value arg, char type, void *dest);
 
 public:
     Context();
 
-    bool is_failing() { return failing; }
+    bool failing() { return _failing; }
+    const char *fail_message() { return _fail_message; }
 
     Value cons(Value car, Value cdr) { return alloc.cons(car, cdr); }
     Value num(int num) { return alloc.num(num); }
-    Value sym(std::string name) { return alloc.sym(name); }
+    Value sym(const char *name) { return alloc.sym(name); }
     Value func(Value env, Value arg_names, Value body, Value name) {
         return alloc.func(env, arg_names, body, name);
     }
-    Value str(const char *s) { return alloc.str(s); }
+    Value str(char *s) { return alloc.str(s); }
 
-    std::string sym_name(Value sym) { return alloc.sym_name(sym); }
+    const char *sym_name(Value sym) { return alloc.sym_name(sym); }
 
     void env_define(Value env, Value key, Value value);
 
@@ -59,15 +56,15 @@ public:
 
     Value eval(Value env, Value expr, bool tail_position = false);
 
-    Value error(std::string msg);
+    Value error(const char *msg, ...);
 
     bool extract(Value args, const char *format, ...);
 
-    void define_builtin(std::string name, BuiltinFunc func);
-    void define_syntax(std::string name, SyntaxFunc func);
+    void define_builtin(const char *name, BuiltinFunc func);
+    void define_syntax(const char *name, SyntaxFunc func);
 
-    Value exec(std::string code, bool report_errors = false);
-    Value exec_file(std::string path, bool report_errors = false);
+    Value exec(char *code, bool report_errors = false, bool print_results = false);
+    Value exec_file(char *path, bool report_errors = false, bool print_results = false);
     void repl();
     void print(Value val, bool newline = true);
 };

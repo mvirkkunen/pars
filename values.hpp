@@ -1,12 +1,8 @@
 #pragma once
 
 #include <vector>
-#include <string>
-#include <cctype>
-#include <cstring>
 #include <cstdlib>
-
-using std::intptr_t;
+#include <cstdint>
 
 namespace pars {
 
@@ -121,7 +117,7 @@ class Allocator {
     ValueCell *pool;
     ValueCell *first_free;
 
-    std::vector<std::string> syms;
+    std::vector<const char *> sym_names;
 
     void collect();
 
@@ -148,11 +144,11 @@ public:
         return (Value)(((intptr_t)*(unsigned int *)&num << 2) | 0x1);
     }
 
-    Value sym(std::string name);
-    std::string sym_name(Value sym);
+    Value sym(const char *name);
+    const char *sym_name(Value sym);
 
     Value func(Value env, Value arg_names, Value body, Value name);
-    std::string func_name(Value func);
+    const char *func_name(Value func);
 
     Value builtin(BuiltinFunc func);
 

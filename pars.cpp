@@ -1,13 +1,13 @@
-#include <map>
-#include <string>
-#include <iostream>
-#include <fstream>
-#include <sstream>
+#include <cstdio>
+#include <cstring>
+#include <cctype>
 #include <cstdarg>
 
 #include "pars.hpp"
 
 namespace pars {
+
+namespace builtins { void define_all(Context &c); }
 
 Context::Context() : alloc(1024) {
     reset();
@@ -21,7 +21,7 @@ Value Context::apply(Value func, Value args) {
     Value prev_cur_func = cur_func;
     cur_func = func;
 
-    //fprintf(stderr, "Stack depth: %10llu\n", (unsigned long long)&prev_cur_func);
+    //printf("Stack depth: %10llu\n", (unsigned long long)&prev_cur_func);
 
     Value value = func_val(func);
 
@@ -43,8 +43,8 @@ tail_call:
     for (Value e = body; is_cons(e); e = cdr(e)) {
         result = eval(func_env, car(e), is_nil(cdr(e)));
 
-        if (failing) {
-            fail_message = "In " + alloc.func_name(func) + ":\n" + fail_message;
+        if (failing()) {
+            // TODO: maybe report function name for debuggin?
             return nil;
         }
 
@@ -60,32 +60,41 @@ tail_call:
     return result;
 }
 
-bool Context::parse(std::istream &source, Value &result, int level) {
+char *strslice(char *start, char *end) {
+    int len = end - start;
+
+    char *str = (char *)malloc(len + 1);
+    memcpy(str, start, len);
+    str[len] = '\0';
+
+    return str;
+}
+
+bool Context::parse(char **source, Value &result) {
     result = nil;
 
-    char c;
-    while (source.get(c) && std::isspace(c))
+    char *s = *source;
+
+    for (; isspace(*s); s++)
         ;
 
-    if (!source)
-        return false;
-
-    if (c == ')') {
-        if (level == 0) {
-            result = error("Spurious '('");
-            return false;
-        }
-
-        source.unget();
-
-        return false;
-    } else if (c == '(') {
+    if (*s == ')') {
+        result = error("Unexpected '('");
+    } else if (*s == '(') {
         Value tail;
-        result = nil;
 
-        for (Value item; parse(source, item, level + 1); ) {
-            if (failing)
-                return false;
+        s++;
+
+        while (true) {
+            for (; isspace(*s); s++)
+                ;
+
+            if (*s == ')')
+                break;
+
+            Value item;
+            if (!parse(&s, item))
+                break;
 
             Value new_tail = cons(item, nil);
 
@@ -97,68 +106,72 @@ bool Context::parse(std::istream &source, Value &result, int level) {
             }
         }
 
-        char c;
-        while (source.get(c) && std::isspace(c))
-            ;
+        if (!failing() && *s == ')') {
+            s++;
 
-        if (c != ')') {
-            result = error("Missing ')'");
-            return false;
+            *source = s;
+            return true;
         }
 
-        return true;
-    } else if (c == '\'') {
+        result = error("Expected ')'");
+    } else if (*s == '\'') {
+        s++;
+
         Value expr;
-        if (!parse(source, expr, level))
-            return false;
+        if (parse(&s, expr)) {
+            result = cons(sym("quote"), cons(expr, nil));
 
-        result = cons(sym("quote"), cons(expr, nil));
-        return true;
-    } else if (c == '"') {
-        std::string buf;
+            *source = s;
+            return true;
+        }
+    } else if (*s == '"') {
+        char *start = s + 1;
 
-        while (source.get(c) && c != '"')
-            buf += c;
+        s++;
 
-        if (c == '"') {
-            result = str(buf.c_str());
+        for (; *s && *s != '"'; s++)
+            ;
+
+        if (*s == '"') {
+            result = str(strslice(start, s));
+
+            s++;
+
+            *source = s;
             return true;
         }
 
         result = error("Missing closing '\"'");
-        return false;
-    } else {
-        bool numeric = true;
-        std::string buf;
+    } else if (*s) {
+        char *start = s;
+        bool numeric = *s == '-' || *s == '+' || isdigit(*s);
 
-        buf += c;
-        if (c != '-' && c != '+' && !std::isdigit(c))
-            numeric = false;
+        s++;
 
-        while (source.get(c) && !(std::isspace(c) || c == '(' || c == ')')) {
-            if (!std::isdigit(c))
+        for (; !(isspace(*s) || *s == '(' || *s == ')' || *s == '"'); s++) {
+            if (!isdigit(*s))
                 numeric = false;
-
-            buf += c;
         }
 
-        if (source)
-            source.unget();
+        char *str = strslice(start, s);
 
-        if (numeric && buf != "+" && buf != "-")
-            result = num(std::atoi(buf.c_str()));
-        else
-            result = sym(buf);
+        result = (numeric && (str[1] != '\0' || isdigit(str[0])))
+            ? num(atoi(str))
+            : sym(str);
 
+        free(str);
+
+        *source = s;
         return true;
     }
+
+    return false;
 }
 
 void Context::reset() {
     cur_func = nil;
     will_tail_call = false;
-    failing = false;
-    fail_message = "";
+    _failing = false;
 }
 
 bool Context::extract_one(Value arg, char type, void *dest) {
@@ -194,7 +207,7 @@ bool Context::extract_one(Value arg, char type, void *dest) {
         }
     }
 
-    error(std::string("Bad extraction: '") + type + "'");
+    error("Bad extraction: '%c'", type);
     return false;
 }
 
@@ -222,7 +235,7 @@ Value Context::env_get(Value env, Value key) {
     if (is_cons(car(env)))
         return env_get(car(env), key);
 
-    return error(std::string("Not defined: '") + sym_name(key) + "'");
+    return error("Not defined: '%s'", sym_name(key));
 }
 
 Value Context::eval_list(Value env, Value list) {
@@ -230,7 +243,7 @@ Value Context::eval_list(Value env, Value list) {
 
     for (; is_cons(list); list = cdr(list)) {
         Value evaluated = eval(env, car(list));
-        if (failing)
+        if (failing())
             return nil;
 
         Value new_tail = cons(evaluated, nil);
@@ -260,14 +273,17 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
 
         case Type::cons:
         {
-            if (is_sym(car(expr))) {
-                auto it = syntax.find(sym_id(car(expr)));
-                if (it != syntax.end())
-                    return it->second(*this, env, cdr(expr), tail_position);
+            Value first = car(expr);
+
+            if (is_sym(first)) {
+                for (int i = 0; i < (int)syntax.size(); i++) {
+                    if (syntax[i].sym == first)
+                        return syntax[i].func(*this, env, cdr(expr), tail_position);
+                }
             }
 
             expr = eval_list(env, expr);
-            if (failing)
+            if (failing())
                 return nil;
 
             Value func = car(expr), args = cdr(expr);
@@ -281,9 +297,8 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
                 return apply(func, args);
             }
 
-            if (type_of(func) == Type::builtin) {
+            if (type_of(func) == Type::builtin)
                 return builtin_val(func)(*this, args);
-            }
 
             return error("eval: Invalid application");
         }
@@ -292,9 +307,14 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
     return error("eval: This shouldn't happen");
 }
 
-Value Context::error(std::string msg) {
-    failing = true;
-    fail_message = msg;
+Value Context::error(const char *msg, ...) {
+    va_list va;
+    va_start(va, msg);
+
+    _failing = true;
+    vsnprintf(_fail_message, sizeof(_fail_message), msg, va);
+
+    va_end(va);
 
     return nil;
 }
@@ -323,7 +343,7 @@ bool Context::extract(Value args, const char *format, ...) {
                 switch (type) {
                     case 'n': value_size = sizeof(int); break;
                     default:
-                        error(std::string("Bad array extraction: '") + type + "'");
+                        error("Bad array extraction: '%c'", type);
                         goto out;
                 }
 
@@ -340,7 +360,6 @@ bool Context::extract(Value args, const char *format, ...) {
                 int index = 0;
                 for (Value item = list; is_cons(item); item = cdr(item)) {
                     if (!extract_one(car(item), type, result + (index * value_size))) {
-                        printf("single ext fail\n");
                         free(result);
                         goto out;
                     }
@@ -380,67 +399,75 @@ out:
     return true;
 }
 
-void Context::define_builtin(std::string name, BuiltinFunc func) {
+void Context::define_builtin(const char *name, BuiltinFunc func) {
     env_define(root_env, sym(name), alloc.builtin(func));
 }
 
-void Context::define_syntax(std::string name, SyntaxFunc func) {
-    syntax[sym_id(sym(name))] = func;
+void Context::define_syntax(const char *name, SyntaxFunc func) {
+    SyntaxEntry ent;
+    ent.sym = sym(name);
+    ent.func = func;
+
+    syntax.push_back(ent);
 }
 
-Value Context::exec(std::string code, bool report_errors) {
+Value Context::exec(char *code, bool report_errors, bool print_results) {
     Value result = nil;
-
-    std::istringstream source(code);
 
     while (true) {
         reset();
 
         Value body;
-        if (!parse(source, body))
+        if (!parse(&code, body))
             break;
 
         reset();
         result = eval(root_env, body);
 
-        if (failing) {
-            if (report_errors)
-                std::cerr << "Error: " << fail_message << std::endl;
-
+        if (failing())
             break;
-        }
+
+        if (print_results && !is_nil(result))
+            print(result);
     }
+
+    if (failing() && report_errors)
+        fprintf(stderr, "Error: %s\n", _fail_message);
 
     return result;
 }
 
-Value Context::exec_file(std::string path, bool report_errors) {
-    std::ifstream file(path);
-    file.seekg(0, std::ios::end);
+Value Context::exec_file(char *path, bool report_errors, bool print_results) {
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return nil;
 
-    size_t size = file.tellg();
-    std::string buf(size, ' ');
-    file.seekg(0);
+    fseek(f, 0, SEEK_END);
+    int length = (int)ftell(f);
 
-    file.read(&buf[0], size);
+    fseek(f, 0, SEEK_SET);
 
-    return exec(buf, report_errors);
+    char *code = (char *)malloc(length + 1);
+    fread(code, 1, length, f);
+
+    fclose(f);
+
+    Value result = exec(code, report_errors, print_results);
+
+    free(code);
+
+    return result;
 }
 
 void Context::repl() {
+    char buf[1024];
+
     while (true) {
-        std::cout << "> ";
-
-        std::string source;
-        std::getline(std::cin, source);
-
-        if (source == "")
+        printf("> ");
+        if (!fgets(buf, sizeof(buf), stdin))
             break;
 
-        Value result = exec(source, true);
-
-        if (!is_nil(result))
-            print(result);
+        exec(buf, true, true);
     }
 }
 
@@ -483,7 +510,7 @@ void Context::print(Value val, bool newline) {
             break;
 
         case Type::sym:
-            std::cout << sym_name(val);
+            printf("%s", sym_name(val));
             break;
 
         case Type::builtin:

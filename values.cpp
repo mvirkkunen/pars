@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <cstring>
 #include "values.hpp"
 
 namespace pars {
@@ -5,7 +7,7 @@ namespace pars {
 void Allocator::collect() {
     // TODO: Implement garbage collection
 
-    printf("allocator: Out of memory.\n");
+    fprintf(stderr, "allocator: Out of memory.\n");
     exit(1);
 }
 
@@ -33,31 +35,35 @@ Allocator::~Allocator() {
     delete[] pool;
 }
 
-Value Allocator::sym(std::string name) {
+Value Allocator::sym(const char *name) {
     int id = -1;
 
-    for (int i = 0; i < (int)syms.size(); i++) {
-        if (syms[i] == name) {
+    for (int i = 0; i < (int)sym_names.size(); i++) {
+        if (!strcmp(sym_names[i], name)) {
             id = i;
             break;
         }
     }
 
     if (id == -1) {
-        id = syms.size();
-        syms.push_back(name);
+        id = sym_names.size();
+
+        char *copy = (char *)malloc(strlen(name) + 1);
+        strcpy(copy, name);
+
+        sym_names.push_back(copy);
     }
 
     return (Value)(((intptr_t)id << 2) | 0x2);
 }
 
-std::string Allocator::sym_name(Value sym) {
+const char *Allocator::sym_name(Value sym) {
     int id = sym_id(sym);
 
-    if (id >= (int)syms.size())
+    if (id >= (int)sym_names.size())
         return "<sym!?>";
 
-    return syms[id];
+    return sym_names[id];
 }
 
 Value Allocator::func(Value env, Value arg_names, Value body, Value name) {
@@ -72,7 +78,7 @@ Value Allocator::func(Value env, Value arg_names, Value body, Value name) {
     return tagged(v);
 }
 
-std::string Allocator::func_name(Value func) {
+const char *Allocator::func_name(Value func) {
     Value name = car(cdr(cdr(cdr(func_val(func)))));
 
     if (is_sym(name))
@@ -90,8 +96,8 @@ Value Allocator::builtin(BuiltinFunc func) {
 }
 
 Value Allocator::str(const char *s) {
-    char *copy = (char *)malloc((strlen(s) + 1) * sizeof(char));
-    std::strcpy(copy, s);
+    char *copy = (char *)malloc(strlen(s) + 1);
+    strcpy(copy, s);
 
     Value v = alloc();
     v->tag = Type::str;

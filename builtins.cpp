@@ -1,3 +1,5 @@
+#include <cstdio>
+
 #include "pars.hpp"
 
 namespace pars { namespace builtins {
@@ -142,7 +144,7 @@ Value lambda(Context &c, Value env, Value args, bool tail_position) {
 // (if test then else)
 Value if_(Context &c, Value env, Value args, bool tail_position) {
     Value res = c.eval(env, car(args));
-    if (c.is_failing())
+    if (c.failing())
         return nil;
 
     return is_truthy(res)
