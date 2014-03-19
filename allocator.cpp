@@ -175,14 +175,14 @@ void Allocator::collect_core(void *stack_bottom) {
 }
 
 void Allocator::collect(bool consider_stack) {
-#if GC_NONE
+#ifdef GC_NONE
     fprintf(stderr, "allocator: Out of memory and GC not supported.\n");
     exit(1);
 #endif
 
     void *stack_bottom;
 
-#if __x86_64__ && __linux__
+#ifdef GC_UNIX64
     asm(R"(
         pushq %%rbp
         pushq %%rbx
@@ -196,7 +196,7 @@ void Allocator::collect(bool consider_stack) {
 
     collect_core(consider_stack ? stack_bottom : nullptr);
 
-#if __x86_64__ && __linux__
+#ifdef GC_UNIX64
     asm(R"(
         popq %%r15
         popq %%r14
