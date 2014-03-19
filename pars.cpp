@@ -9,10 +9,14 @@ namespace pars {
 
 namespace builtins { void define_all(Context &c); }
 
-Context::Context() : alloc(1024) {
+Context::Context() : alloc(200) {
+    // Good enough for now
+    alloc.mark_stack_top((void *)this);
+
     reset();
 
     root_env = cons(nil, nil);
+    alloc.pin(root_env);
 
     builtins::define_all(*this);
 }
@@ -224,6 +228,19 @@ void Context::env_define(Value env, Value key, Value value) {
     set_cdr(env, cons(cons(key, value), cdr(env)));
 }
 
+void Context::env_undefine(Value env, Value key) {
+    Value vars = cdr(env), prev = env;
+
+    for (; is_cons(vars); vars = cdr(vars)) {
+        if (is_cons(car(vars)) && car(car(vars)) == key) {
+            set_cdr(prev, cdr(vars));
+            return;
+        }
+
+        env = vars;
+    }
+}
+
 Value Context::env_get(Value env, Value key) {
     Value vars = cdr(env);
 
@@ -266,6 +283,7 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
         case Type::func:
         case Type::builtin:
         case Type::str:
+        case Type::free:
             return expr;
 
         case Type::sym:
@@ -282,11 +300,11 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
                 }
             }
 
-            expr = eval_list(env, expr);
+            Value evald = eval_list(env, expr);
             if (failing())
                 return nil;
 
-            Value func = car(expr), args = cdr(expr);
+            Value func = car(evald), args = cdr(evald);
 
             if (type_of(func) == Type::func) {
                 if (tail_position && func == cur_func) {
@@ -520,6 +538,15 @@ void Context::print(Value val, bool newline) {
 
         case Type::str:
             printf("\"%s\"", str_val(val));
+            break;
+
+        case Type::free:
+            printf("#FREE");
+            break;
+
+        default:
+            printf("#WAT");
+            break;
     }
 
     if (newline)

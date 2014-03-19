@@ -13,7 +13,7 @@ using Value = ValueCell *;
 
 using BuiltinFunc = Value (*)(Context &ctx, Value args);
 
-enum class Type : intptr_t  {
+enum class Type : uintptr_t  {
     nil = 0,     // 0 pointer
     // tagged:      x011
     // Rest of bits is a pointer to tagged value cell
@@ -22,15 +22,17 @@ enum class Type : intptr_t  {
     builtin = 2, // tagged.builtin_func = ptr to func
     str = 3,     // tagged.string = c-string
     // tag in value itself
-    cons = 4,    // xx00
+    cons = 4,    // x000
     num = 5,     // xx01 (30 bit)
     sym = 6,     // xx10 (30 bit id)
+
+    free = (uintptr_t)~1, // for debugging
 };
 
 struct ValueCell {
     union {
         struct {
-            intptr_t tag;
+            uintptr_t tag;
             union {
                 Value value;
                 BuiltinFunc builtin_func;
@@ -53,11 +55,11 @@ inline void set_car(Value cons, Value car) { cons->car = car; }
 inline void set_cdr(Value cons, Value cdr) { cons->cdr = cdr; }
 
 inline int num_val(Value num) {
-    return (int)((intptr_t)num & 0xFFFFFFFC) >> 2;
+    return (int)((uintptr_t)num & 0xFFFFFFFC) >> 2;
 }
 
 inline Value tagged_val(Value val) {
-    return (Value)((intptr_t)val - 3);
+    return (Value)((uintptr_t)val - 3);
 }
 
 inline Value func_val(Value func) {
@@ -73,11 +75,11 @@ inline char *str_val(Value str) {
 }
 
 inline int sym_id(Value sym) {
-    return ((intptr_t)sym & 0xFFFFFFFC) >> 2;
+    return ((uintptr_t)sym & 0xFFFFFFFC) >> 2;
 }
 
 inline Type type_of(Value val) {
-    intptr_t ival = (intptr_t)val;
+    uintptr_t ival = (uintptr_t)val;
 
     if (ival == 0)
         return Type::nil;
@@ -90,7 +92,8 @@ inline Type type_of(Value val) {
     else if (tag == 0x2)
         return Type::sym;
 
-    return (Type)(tagged_val(val)->tag >> 3);
+    Type type = (Type)(tagged_val(val)->tag >> 3);
+    return (type != Type::nil) ? type : Type::free;
 }
 
 inline const char *type_name(Type t) {
@@ -102,6 +105,7 @@ inline const char *type_name(Type t) {
         case Type::cons: return "cons";
         case Type::num: return "num";
         case Type::sym: return "sym";
+        case Type::free: return "FREE";
     }
 
     return "error";

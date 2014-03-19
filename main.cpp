@@ -1,4 +1,6 @@
+#include <cstdio>
 #include "pars.hpp"
+#include "allocator.hpp"
 
 int main(int argc, char **argv) {
     pars::Context ctx;

@@ -9,31 +9,40 @@ namespace pars {
 
 class Allocator {
     struct Chunk {
-        int size, free;
+        int free;
         ValueCell *mem, *first_free;
+        char *marks;
     };
 
-    int size;
-
     std::vector<const char *> sym_names;
+
+    int size;
     std::vector<Chunk *> chunks;
+
+    void *stack_top;
+    std::vector<Value> pins;
 
     void new_chunk();
 
-    void collect();
+    void collect_core(void *stack_bottom);
 
     Value alloc();
 
     Value tag(Value val, Type tag) {
-        val->tag = ((intptr_t)tag << 3) | 0x7;
+        val->tag = ((uintptr_t)tag << 3) | 0x7;
 
-        return (Value)((intptr_t)val | 0x3);
+        return (Value)((uintptr_t)val | 0x3);
     }
 
 public:
 
     Allocator(int size);
     ~Allocator();
+
+    void mark_stack_top(void *stack_top);
+    void collect();
+    void pin(Value val);
+    void unpin(Value val);
 
     Value cons(Value car, Value cdr) {
         Value val = alloc();
@@ -44,7 +53,7 @@ public:
     }
 
     Value num(int num) {
-        return (Value)(((intptr_t)*(unsigned int *)&num << 2) | 0x1);
+        return (Value)((uintptr_t)(num << 2) | 0x1);
     }
 
     Value sym(const char *name);

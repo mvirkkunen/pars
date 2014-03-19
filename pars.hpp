@@ -53,6 +53,8 @@ public:
 
     void env_define(Value env, Value key, Value value);
 
+    void env_undefine(Value env, Value key);
+
     Value env_get(Value env, Value key);
 
     Value eval(Value env, Value expr, bool tail_position = false);
