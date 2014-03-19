@@ -3,13 +3,7 @@
 #include <malloc.h>
 #include <valgrind/memcheck.h>
 #include "allocator.hpp"
-
-// Great platform support
-#if defined(__x86_64__) && defined(__linux__)
-#define GC_UNIX64
-#else
-#define GC_NONE
-#endif
+#include "magic.hpp"
 
 namespace pars {
 
@@ -175,37 +169,13 @@ void Allocator::collect_core(void *stack_bottom) {
 }
 
 void Allocator::collect(bool consider_stack) {
-#ifdef GC_NONE
-    fprintf(stderr, "allocator: Out of memory and GC not supported.\n");
-    exit(1);
-#endif
-
     void *stack_bottom;
 
-#ifdef GC_UNIX64
-    asm(R"(
-        pushq %%rbp
-        pushq %%rbx
-        pushq %%r12
-        pushq %%r13
-        pushq %%r14
-        pushq %%r15
-        movq %%rsp, %0
-    )" : "=r"(stack_bottom) :: "sp");
-#endif
+    GC_PUSH_ALL_REGS(stack_bottom);
 
     collect_core(consider_stack ? stack_bottom : nullptr);
 
-#ifdef GC_UNIX64
-    asm(R"(
-        popq %%r15
-        popq %%r14
-        popq %%r13
-        popq %%r12
-        popq %%rbx
-        popq %%rbp
-    )" ::: "sp");
-#endif
+    GC_POP_ALL_REGS();
 }
 
 Value Allocator::alloc() {
@@ -275,9 +245,9 @@ void Allocator::new_chunk() {
 
     ValueCell *v = c->mem;
 
-    for (int i = 0; i < size - 1; i++, v++) {
+    for (int i = 0; i < size; i++, v++) {
         v->tag = 0x7; // nil tag
-        v->tagged.next_free = v + 1;
+        v->tagged.next_free = (i < size - 1) ? v + 1 : nullptr;
     }
 
     c->first_free = c->mem;
