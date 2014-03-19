@@ -35,13 +35,16 @@ Value NAME(Context &c, Value args) { \
     if (!c.extract(args, "*n", &nums, &count)) \
         return nil; \
     \
+    Value result = c.num(1); \
     for (int i = 0; i < count - 1; i++) { \
-        if (!(nums[i] OP nums[i + 1])) \
-            return nil; \
+        if (!(nums[i] OP nums[i + 1])) { \
+            result = nil; \
+            break; \
+        } \
     } \
     free(nums); \
     \
-    return c.num(1); \
+    return result; \
 }
 
 MAKE_CMP_BUILTIN(op_eq, ==)

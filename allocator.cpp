@@ -34,26 +34,32 @@ void Allocator::collect_core(void *stack_bottom) {
 
     std::vector<Value> roots, new_roots;
 
-    // start with stack
-
-    VALGRIND_MAKE_MEM_DEFINED((char *)stack_bottom, (char *)stack_top - (char *)stack_bottom);
-
-    bool add_pins;
+    bool first = true;
     Value *start, *end;
 
     if (stack_bottom) {
+        // start with stack
+
+        VALGRIND_MAKE_MEM_DEFINED((char *)stack_bottom, (char *)stack_top - (char *)stack_bottom);
+
         start = (Value *)stack_bottom;
         end = (Value *)stack_top;
-        add_pins = true;
     } else {
-        start = &pins[0];
-        end = &pins[pins.size()];
-        add_pins = false;
+        // skip stack
+
+        start = end = nullptr;
     }
 
-    while (start < end) {
+    while (first || start < end) {
+        // on first pass add any pinned objects to list
+        if (first) {
+            new_roots.assign(pins.begin(), pins.end());
+            first = false;
+        }
+
         // loop through current range assuming anything may be a value
         for (Value *iter = start; iter < end; iter++) {
+            // strip off value tag bits
             ValueCell *cell = ensure_pointer(*iter);
 
             // loop through chunks
@@ -67,10 +73,12 @@ void Allocator::collect_core(void *stack_bottom) {
                     if (cell->tag == 0x7)
                         break; // free cell
 
-                    if (c->marks[offs / 8] & (1 << (offs % 8)))
+                    unsigned int bit = 1 << (offs % 8);
+
+                    if (c->marks[offs / 8] & bit)
                         break; // already marked
 
-                    c->marks[offs / 8] |= 1 << (offs % 8); // mark cell
+                    c->marks[offs / 8] |= bit; // mark cell
 
                     if (gc_is_tagged(cell)) {
                         Value val = cell;
@@ -108,12 +116,6 @@ void Allocator::collect_core(void *stack_bottom) {
         roots.assign(new_roots.begin(), new_roots.end());
         new_roots.clear();
 
-        // on first normal pass add any pinned objects to list
-        if (add_pins) {
-            roots.insert(roots.end(), pins.begin(), pins.end());
-            add_pins = false;
-        }
-
         start = &roots[0];
         end = &roots[roots.size()];
     }
@@ -133,8 +135,6 @@ void Allocator::collect_core(void *stack_bottom) {
 
             if (c->marks[offs / 8] & (1 << (offs % 8)))
                 continue; // marked, spare
-
-            // TODO: free dependent values
 
             if (gc_is_tagged(cell)) {
                 Value val = cell;
@@ -159,7 +159,7 @@ void Allocator::collect_core(void *stack_bottom) {
     }
 }
 
-void Allocator::collect() {
+void Allocator::collect(bool consider_stack) {
 #if GC_NONE
     fprintf(stderr, "allocator: Out of memory and GC not supported.\n");
     exit(1);
@@ -179,7 +179,7 @@ void Allocator::collect() {
     )" : "=r"(stack_bottom) :: "sp");
 #endif
 
-    collect_core(stack_bottom);
+    collect_core(consider_stack ? stack_bottom : nullptr);
 
 #if __x86_64__ && __linux__
     asm(R"(
@@ -217,8 +217,19 @@ Allocator::Allocator(int size) : size(size) {
 }
 
 Allocator::~Allocator() {
-    for (size_t i = 0; i < chunks.size(); i++)
-        free(chunks[i]->mem);
+    pins.clear();
+    collect(false);
+
+    for (size_t i = 0; i < chunks.size(); i++) {
+        Chunk *c = chunks[i];
+
+        free(c->mem);
+        free(c->marks);
+        free(c);
+    }
+
+    for (size_t i = 0; i < sym_names.size(); i++)
+        free((void *)sym_names[i]);
 }
 
 void Allocator::mark_stack_top(void *stack_top) {

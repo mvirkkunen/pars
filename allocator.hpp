@@ -40,7 +40,7 @@ public:
     ~Allocator();
 
     void mark_stack_top(void *stack_top);
-    void collect();
+    void collect(bool consider_stack = true);
     void pin(Value val);
     void unpin(Value val);
 

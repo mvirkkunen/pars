@@ -137,7 +137,9 @@ bool Context::parse(char **source, Value &result) {
             ;
 
         if (*s == '"') {
-            result = str(strslice(start, s));
+            char *slice = strslice(start, s);
+            result = str(slice);
+            free(slice);
 
             s++;
 
