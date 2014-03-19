@@ -276,7 +276,7 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
             Value first = car(expr);
 
             if (is_sym(first)) {
-                for (int i = 0; i < (int)syntax.size(); i++) {
+                for (size_t i = 0; i < syntax.size(); i++) {
                     if (syntax[i].sym == first)
                         return syntax[i].func(*this, env, cdr(expr), tail_position);
                 }
@@ -443,7 +443,7 @@ Value Context::exec_file(char *path, bool report_errors, bool print_results) {
         return nil;
 
     fseek(f, 0, SEEK_END);
-    int length = (int)ftell(f);
+    size_t length = ftell(f);
 
     fseek(f, 0, SEEK_SET);
 

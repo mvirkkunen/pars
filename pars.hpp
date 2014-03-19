@@ -2,6 +2,7 @@
 
 #include <vector>
 #include "values.hpp"
+#include "allocator.hpp"
 
 namespace pars {
 

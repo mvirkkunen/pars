@@ -27,7 +27,7 @@ enum class Type : intptr_t  {
     sym = 6,     // xx10 (30 bit id)
 };
 
-struct alignas(sizeof(Value) * 2) ValueCell {
+struct ValueCell {
     union {
         struct {
             intptr_t tag;
@@ -112,50 +112,5 @@ inline bool is_nil(Value val) { return type_of(val) == Type::nil; }
 inline bool is_sym(Value val) { return type_of(val) == Type::sym; }
 inline bool is_num(Value val) { return type_of(val) == Type::num; }
 inline bool is_truthy(Value val) { return !is_nil(val); }
-
-class Allocator {
-    int size, free;
-    ValueCell *pool;
-    ValueCell *first_free;
-
-    std::vector<const char *> sym_names;
-
-    void collect();
-
-    Value alloc();
-
-    Value tag(Value val, Type tag) {
-        val->tag = ((intptr_t)tag << 3) | 0x7;
-
-        return (Value)((intptr_t)val | 0x3);
-    }
-
-public:
-
-    Allocator(int size);
-    ~Allocator();
-
-    Value cons(Value car, Value cdr) {
-        Value val = alloc();
-        val->car = car;
-        val->cdr = cdr;
-
-        return (Value)val;
-    }
-
-    Value num(int num) {
-        return (Value)(((intptr_t)*(unsigned int *)&num << 2) | 0x1);
-    }
-
-    Value sym(const char *name);
-    const char *sym_name(Value sym);
-
-    Value func(Value env, Value arg_names, Value body, Value name);
-    const char *func_name(Value func);
-
-    Value builtin(BuiltinFunc func);
-
-    Value str(const char *s);
-};
 
 }

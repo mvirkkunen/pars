@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
-#include "values.hpp"
+#include <malloc.h>
+#include "allocator.hpp"
 
 namespace pars {
 
@@ -12,37 +13,53 @@ void Allocator::collect() {
 }
 
 Value Allocator::alloc() {
-    if (free == 0)
+    Chunk *c = chunks[0];
+
+    if (c->free == 0)
         collect();
 
-    Value allocated = first_free;
+    Value allocated = c->first_free;
 
-    first_free = first_free->tagged.next_free;
-    free--;
+    c->first_free = c->first_free->tagged.next_free;
+    c->free--;
 
     return allocated;
 }
 
-Allocator::Allocator(int size) : size(size), free(size) {
-    pool = new ValueCell[size];
-    for (int i = 0; i < size - 1; i++) {
-        pool[i].tag = 0x7; // nil tag
-        pool[i].tagged.next_free = &pool[i + 1];
-    }
-
-    first_free = &pool[0];
+Allocator::Allocator(int size) : size(size) {
+    new_chunk();
 }
 
 Allocator::~Allocator() {
-    delete[] pool;
+    for (size_t i = 0; i < chunks.size(); i++)
+        delete chunks[i]->mem;
+}
+
+void Allocator::new_chunk() {
+    Chunk *c = (Chunk *)malloc(sizeof(Chunk));
+    c->size = size;
+    c->free = size;
+
+    c->mem = (ValueCell *)memalign(sizeof(ValueCell) * 2, size * sizeof(ValueCell));
+
+    ValueCell *v = c->mem;
+
+    for (int i = 0; i < size - 1; i++, v++) {
+        v->tag = 0x7; // nil tag
+        v->tagged.next_free = v + 1;
+    }
+
+    c->first_free = c->mem;
+
+    chunks.push_back(c);
 }
 
 Value Allocator::sym(const char *name) {
     int id = -1;
 
-    for (int i = 0; i < (int)sym_names.size(); i++) {
+    for (size_t i = 0; i < sym_names.size(); i++) {
         if (!strcmp(sym_names[i], name)) {
-            id = i;
+            id = (int)i;
             break;
         }
     }
