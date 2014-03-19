@@ -9,7 +9,7 @@ namespace pars {
 
 namespace builtins { void define_all(Context &c); }
 
-Context::Context() : alloc(200) {
+Context::Context() : alloc(1024) {
     // Good enough for now
     alloc.mark_stack_top((void *)this);
 

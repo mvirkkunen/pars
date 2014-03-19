@@ -15,23 +15,26 @@ using BuiltinFunc = Value (*)(Context &ctx, Value args);
 
 enum class Type : uintptr_t  {
     nil = 0,     // 0 pointer
+
     // tagged:      x011
     // Rest of bits is a pointer to tagged value cell
-    // Lowest 3 bits of tag in cell = always 1 to distinguish from actual pointer
     func = 1,    // tagged.value = (list env arg_names body name)
     builtin = 2, // tagged.builtin_func = ptr to func
     str = 3,     // tagged.string = c-string
+
     // tag in value itself
     cons = 4,    // x000
     num = 5,     // xx01 (30 bit)
     sym = 6,     // xx10 (30 bit id)
 
-    free = (uintptr_t)~1, // for debugging
+    free = ~(uintptr_t)0, // for debugging
 };
 
 struct ValueCell {
     union {
         struct {
+            // low 3 bits of tag are 1 to indicate this is a tagged cell
+            // tag == 0x7 means this is a free cel
             uintptr_t tag;
             union {
                 Value value;

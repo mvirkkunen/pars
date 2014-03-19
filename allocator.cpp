@@ -17,6 +17,12 @@ ValueCell *ensure_pointer(Value v) {
     return (ValueCell *)((uintptr_t)v & ~0x7);
 }
 
+bool gc_maybe_pointer(ValueCell *cell) {
+    uintptr_t tag = (uintptr_t)cell & 0x7;
+
+    return tag == 0 || tag == 0x3;
+}
+
 bool gc_is_tagged(ValueCell *cell) {
     return (cell->tag & 0x7) == 0x7;
 }
@@ -59,6 +65,9 @@ void Allocator::collect_core(void *stack_bottom) {
 
         // loop through current range assuming anything may be a value
         for (Value *iter = start; iter < end; iter++) {
+            if (!gc_maybe_pointer(*iter))
+                continue;
+
             // strip off value tag bits
             ValueCell *cell = ensure_pointer(*iter);
 
@@ -79,6 +88,8 @@ void Allocator::collect_core(void *stack_bottom) {
                         break; // already marked
 
                     c->marks[offs / 8] |= bit; // mark cell
+
+                    // recurse to referenced values
 
                     if (gc_is_tagged(cell)) {
                         Value val = cell;
@@ -136,6 +147,8 @@ void Allocator::collect_core(void *stack_bottom) {
             if (c->marks[offs / 8] & (1 << (offs % 8)))
                 continue; // marked, spare
 
+            // free referenced values
+
             if (gc_is_tagged(cell)) {
                 Value val = cell;
 
@@ -143,6 +156,8 @@ void Allocator::collect_core(void *stack_bottom) {
                     case Type::str:
                         free(val->tagged.str);
                         break;
+
+                    // Type::func points to a list which doesn't need special treatment
 
                     default: break;
                 }
@@ -256,7 +271,7 @@ void Allocator::new_chunk() {
     Chunk *c = (Chunk *)malloc(sizeof(Chunk));
     c->free = size;
 
-    c->mem = (ValueCell *)memalign(sizeof(ValueCell) * 2, size * sizeof(ValueCell));
+    c->mem = (ValueCell *)memalign(sizeof(ValueCell), size * sizeof(ValueCell));
 
     ValueCell *v = c->mem;
 
