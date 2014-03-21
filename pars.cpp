@@ -64,7 +64,7 @@ tail_call:
     return result;
 }
 
-char *strslice(char *start, char *end) {
+static char *strslice(char *start, char *end) {
     int len = end - start;
 
     char *str = (char *)malloc(len + 1);

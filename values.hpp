@@ -6,15 +6,14 @@
 
 namespace pars {
 
-class Context;
-
 struct ValueCell;
 using Value = ValueCell *;
 
+class Context;
 using BuiltinFunc = Value (*)(Context &ctx, Value args);
 
 enum class Type : uintptr_t  {
-    nil = 0,     // 0 pointer
+    nil = 0,     // = 0
 
     // tagged:      x011
     // Rest of bits is a pointer to tagged value cell
@@ -34,7 +33,7 @@ struct ValueCell {
     union {
         struct {
             // low 3 bits of tag are 1 to indicate this is a tagged cell
-            // tag == 0x7 means this is a free cel
+            // tag == 0x7 means this is a free cell
             uintptr_t tag;
             union {
                 Value value;
@@ -61,6 +60,10 @@ inline int num_val(Value num) {
     return (int)((uintptr_t)num & 0xFFFFFFFC) >> 2;
 }
 
+inline int sym_val(Value sym) {
+    return ((uintptr_t)sym & 0xFFFFFFFC) >> 2;
+}
+
 inline Value tagged_val(Value val) {
     return (Value)((uintptr_t)val - 3);
 }
@@ -77,47 +80,15 @@ inline char *str_val(Value str) {
     return tagged_val(str)->tagged.str;
 }
 
-inline int sym_id(Value sym) {
-    return ((uintptr_t)sym & 0xFFFFFFFC) >> 2;
-}
+inline bool is_nil(Value val) { return (uintptr_t)val == 0; }
+inline bool is_cons(Value val) { return val != 0 && (((uintptr_t)val) & 0x3) == 0x0; }
+inline bool is_num(Value val) { return (((uintptr_t)val) & 0x3) == 0x1; }
+inline bool is_sym(Value val) { return (((uintptr_t)val) & 0x3) == 0x2; }
 
-inline Type type_of(Value val) {
-    uintptr_t ival = (uintptr_t)val;
-
-    if (ival == 0)
-        return Type::nil;
-
-    int tag = ival & 0x3;
-    if (tag == 0x0)
-        return Type::cons;
-    else if (tag == 0x1)
-        return Type::num;
-    else if (tag == 0x2)
-        return Type::sym;
-
-    Type type = (Type)(tagged_val(val)->tag >> 3);
-    return (type != Type::nil) ? type : Type::free;
-}
-
-inline const char *type_name(Type t) {
-    switch (t) {
-        case Type::nil: return "nil";
-        case Type::func: return "func";
-        case Type::builtin: return "builtin";
-        case Type::str: return "str";
-        case Type::cons: return "cons";
-        case Type::num: return "num";
-        case Type::sym: return "sym";
-        case Type::free: return "FREE";
-    }
-
-    return "error";
-}
-
-inline bool is_cons(Value val) { return type_of(val) == Type::cons; }
-inline bool is_nil(Value val) { return type_of(val) == Type::nil; }
-inline bool is_sym(Value val) { return type_of(val) == Type::sym; }
-inline bool is_num(Value val) { return type_of(val) == Type::num; }
 inline bool is_truthy(Value val) { return !is_nil(val); }
+
+Type type_of(Value val);
+
+const char *type_name(Type t);
 
 }

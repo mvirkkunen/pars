@@ -7,21 +7,21 @@
 
 namespace pars {
 
-ValueCell *ensure_pointer(Value v) {
+inline ValueCell *gc_ensure_pointer(Value v) {
     return (ValueCell *)((uintptr_t)v & ~0x7);
 }
 
-bool gc_maybe_pointer(ValueCell *cell) {
+inline bool gc_maybe_pointer(ValueCell *cell) {
     uintptr_t tag = (uintptr_t)cell & 0x7;
 
     return tag == 0 || tag == 0x3;
 }
 
-bool gc_is_tagged(ValueCell *cell) {
+inline bool gc_is_tagged(ValueCell *cell) {
     return (cell->tag & 0x7) == 0x7;
 }
 
-Type gc_get_type(ValueCell *cell) {
+inline Type gc_get_type(ValueCell *cell) {
     return (Type)(cell->tag >> 3);
 }
 
@@ -63,7 +63,7 @@ void Allocator::collect_core(void *stack_bottom) {
                 continue;
 
             // strip off value tag bits
-            ValueCell *cell = ensure_pointer(*iter);
+            ValueCell *cell = gc_ensure_pointer(*iter);
 
             // loop through chunks
             for (size_t i = 0; i < chunks.size(); i++) {
@@ -280,12 +280,9 @@ Value Allocator::sym(const char *name) {
 }
 
 const char *Allocator::sym_name(Value sym) {
-    int id = sym_id(sym);
+    int id = sym_val(sym);
 
-    if (id >= (int)sym_names.size())
-        return "<sym!?>";
-
-    return sym_names[id];
+    return (id < (int)sym_names.size()) ? sym_names[id] : "<sym!?>";
 }
 
 Value Allocator::func(Value env, Value arg_names, Value body, Value name) {
