@@ -53,15 +53,8 @@ public:
     Value sym(const char *name);
     const char *sym_name(Value sym);
 
-    Value func(Value env, Value arg_names, Value body, Value name);
-    const char *func_name(Value func);
-
-    Value builtin(BuiltinFunc func);
-
-    Value str(const char *s);
-
     Value ptr(Type type, void *ptr);
-    Value fptr(Type type, VoidFunc ptr);
+    Value fptr(Type type, VoidFunc fptr);
 };
 
 }

@@ -71,28 +71,12 @@ inline int sym_val(Value sym) {
     return ((uintptr_t)sym & 0xFFFFFFFC) >> 2;
 }
 
-inline Type tagged_type(Value val) {
-    return (Type)(((Value)((char *)val - 3))->tag >> 3);
-}
-
-inline void *tagged_ptr(Value val) {
+inline void *ptr_of(Value val) {
     return ((Value)((char *)val - 3))->ptr;
 }
 
-inline VoidFunc tagged_fptr(Value val) {
+inline VoidFunc fptr_of(Value val) {
     return ((Value)((char *)val - 3))->fptr;
-}
-
-inline Value func_val(Value func) {
-    return (Value)tagged_ptr(func);
-}
-
-inline BuiltinFunc builtin_val(Value builtin) {
-    return (BuiltinFunc)tagged_fptr(builtin);
-}
-
-inline char *str_val(Value str) {
-    return (char *)tagged_ptr(str);
 }
 
 inline bool is_nil(Value val) { return (uintptr_t)val == 0; }
@@ -103,13 +87,10 @@ inline bool is_sym(Value val) { return (((uintptr_t)val) & 0x3) == 0x2; }
 inline bool is_truthy(Value val) { return !is_nil(val); }
 
 Type type_of(Value val);
-
 const char *type_name(Type t);
 
 Type register_type(const char *name, FindRefsFunc find_refs, DestructorFunc destructor);
 
 TypeEntry *get_type_entry(Type t);
-
-void register_builtin_types();
 
 }

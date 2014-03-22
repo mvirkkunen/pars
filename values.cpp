@@ -6,30 +6,8 @@ namespace pars {
 
 static std::vector<TypeEntry> types;
 
-static int find_ref_value(void *ptr, Value *refs) {
-    refs[0] = (Value)ptr;
-    return 1;
-}
-
-static void destructor_str(void *ptr) {
-    free(ptr);
-}
-
-void register_builtin_types() {
-    types.clear();
-
-    // The order of these shall match the pre-defined values of Type
-
-    // Immediate types
-    register_type("nil", nullptr, nullptr);
-    register_type("cons", nullptr, nullptr);
-    register_type("num", nullptr, nullptr);
-    register_type("sym", nullptr, nullptr);
-
-    // Actually tagged types
-    register_type("func", find_ref_value, nullptr);
-    register_type("builtin", nullptr, nullptr);
-    register_type("str", nullptr, destructor_str);
+inline Type tagged_type(Value val) {
+    return (Type)(((Value)((char *)val - 3))->tag >> 3);
 }
 
 Type type_of(Value val) {

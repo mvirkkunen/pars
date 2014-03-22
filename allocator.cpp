@@ -279,34 +279,6 @@ const char *Allocator::sym_name(Value sym) {
     return (id < (int)sym_names.size()) ? sym_names[id] : "<sym!?>";
 }
 
-Value Allocator::func(Value env, Value arg_names, Value body, Value name) {
-    return ptr(Type::func,
-        cons(env,
-        cons(arg_names,
-        cons(body,
-        cons(name, nil)))));
-}
-
-const char *Allocator::func_name(Value func) {
-    Value name = car(cdr(cdr(cdr(func_val(func)))));
-
-    if (is_sym(name))
-        return sym_name(name);
-
-    return "<lambda>";
-}
-
-Value Allocator::builtin(BuiltinFunc func) {
-    return fptr(Type::builtin, (VoidFunc)func);
-}
-
-Value Allocator::str(const char *s) {
-    char *copy = (char *)malloc(strlen(s) + 1);
-    strcpy(copy, s);
-
-    return ptr(Type::str, copy);
-}
-
 static inline Value tag(Value val, Type type) {
     val->tag = ((uintptr_t)type << 3) | 0x7;
 

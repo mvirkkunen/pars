@@ -37,6 +37,8 @@ class Context {
 
     bool extract_one(Value arg, char type, void *dest);
 
+    Value builtin(BuiltinFunc func);
+
 public:
     Context();
 
@@ -46,12 +48,13 @@ public:
     Value cons(Value car, Value cdr) { return alloc.cons(car, cdr); }
     Value num(int num) { return alloc.num(num); }
     Value sym(const char *name) { return alloc.sym(name); }
-    Value func(Value env, Value arg_names, Value body, Value name) {
-        return alloc.func(env, arg_names, body, name);
-    }
-    Value str(char *s) { return alloc.str(s); }
-
     const char *sym_name(Value sym) { return alloc.sym_name(sym); }
+    Value ptr(Type type, void *ptr) { return alloc.ptr(type, ptr); }
+    Value fptr(Type type, VoidFunc fptr) { return alloc.fptr(type, fptr); }
+
+    Value func(Value env, Value arg_names, Value body, Value name);
+    const char *func_name(Value func);
+    Value str(const char *s);
 
     void env_define(Value env, Value key, Value value);
 
@@ -73,5 +76,17 @@ public:
     void repl();
     void print(Value val, bool newline = true);
 };
+
+inline Value func_val(Value func) {
+    return (Value)ptr_of(func);
+}
+
+inline BuiltinFunc builtin_val(Value builtin) {
+    return (BuiltinFunc)fptr_of(builtin);
+}
+
+inline char *str_val(Value str) {
+    return (char *)ptr_of(str);
+}
 
 }

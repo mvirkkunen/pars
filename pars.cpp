@@ -10,8 +10,32 @@ namespace pars {
 
 static bool is_initialized = false;
 
+static int find_ref_value(void *ptr, Value *refs) {
+    refs[0] = (Value)ptr;
+    return 1;
+}
+
+static void destructor_str(void *ptr) {
+    free(ptr);
+}
+
 void initialize() {
-    register_builtin_types();
+    if (is_initialized)
+        return;
+
+    // The order of these shall match the pre-defined values of Type
+
+    // Immediate types
+    register_type("nil", nullptr, nullptr);
+    register_type("cons", nullptr, nullptr);
+    register_type("num", nullptr, nullptr);
+    register_type("sym", nullptr, nullptr);
+
+    // Actually tagged types
+    register_type("func", find_ref_value, nullptr);
+    register_type("builtin", nullptr, nullptr);
+    register_type("str", nullptr, destructor_str);
+
     is_initialized = true;
 }
 
@@ -32,6 +56,34 @@ Context::Context() : alloc(1024) {
     alloc.pin(root_env);
 
     builtins::define_all(*this);
+}
+
+Value Context::func(Value env, Value arg_names, Value body, Value name) {
+    return ptr(Type::func,
+        cons(env,
+        cons(arg_names,
+        cons(body,
+        cons(name, nil)))));
+}
+
+const char *Context::func_name(Value func) {
+    Value name = car(cdr(cdr(cdr(func_val(func)))));
+
+    if (is_sym(name))
+        return sym_name(name);
+
+    return "<lambda>";
+}
+
+Value Context::builtin(BuiltinFunc func) {
+    return fptr(Type::builtin, (VoidFunc)func);
+}
+
+Value Context::str(const char *s) {
+    char *copy = (char *)malloc(strlen(s) + 1);
+    strcpy(copy, s);
+
+    return ptr(Type::str, copy);
 }
 
 Value Context::apply(Value func, Value args) {
@@ -433,7 +485,7 @@ out:
 }
 
 void Context::define_builtin(const char *name, BuiltinFunc func) {
-    env_define(root_env, sym(name), alloc.builtin(func));
+    env_define(root_env, sym(name), builtin(func));
 }
 
 void Context::define_syntax(const char *name, SyntaxFunc func) {
