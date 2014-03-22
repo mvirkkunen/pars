@@ -2,14 +2,27 @@
 #include <cstring>
 #include <cctype>
 #include <cstdarg>
+#include <vector>
 
 #include "pars.hpp"
 
 namespace pars {
 
+static bool is_initialized = false;
+
+void initialize() {
+    register_builtin_types();
+    is_initialized = true;
+}
+
 namespace builtins { void define_all(Context &c); }
 
 Context::Context() : alloc(1024) {
+    if (!is_initialized) {
+        fprintf(stderr, "Call pars::initialize() first");
+        exit(1);
+    }
+
     // Good enough for now
     alloc.mark_stack_top((void *)this);
 
@@ -282,10 +295,9 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
     switch (type_of(expr)) {
         case Type::nil:
         case Type::num:
-        case Type::func:
-        case Type::builtin:
+        //case Type::func:
+        //case Type::builtin:
         case Type::str:
-        case Type::free:
             return expr;
 
         case Type::sym:
@@ -322,9 +334,10 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
 
             return error("eval: Invalid application");
         }
-    }
 
-    return error("eval: This shouldn't happen");
+        default:
+            return error("eval: Invalid evaluation");
+    }
 }
 
 Value Context::error(const char *msg, ...) {
@@ -540,10 +553,6 @@ void Context::print(Value val, bool newline) {
 
         case Type::str:
             printf("\"%s\"", str_val(val));
-            break;
-
-        case Type::free:
-            printf("#FREE");
             break;
 
         default:

@@ -2,6 +2,8 @@
 
 #include "pars.hpp"
 
+#define list_each
+
 namespace pars { namespace builtins {
 
 #define MAKE_MATH_BUILTIN(NAME, OP) \

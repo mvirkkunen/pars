@@ -1,8 +1,9 @@
 #include <cstdio>
 #include "pars.hpp"
-#include "allocator.hpp"
 
 int main(int argc, char **argv) {
+    pars::initialize();
+
     pars::Context ctx;
 
     if (argc > 1) {

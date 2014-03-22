@@ -7,12 +7,16 @@
 
 namespace pars {
 
+const uintptr_t tag_free = 0x7;
+
+static Value value_buf[2];
+
 inline ValueCell *gc_ensure_pointer(Value v) {
     return (ValueCell *)((uintptr_t)v & ~0x7);
 }
 
-inline bool gc_maybe_pointer(ValueCell *cell) {
-    uintptr_t tag = (uintptr_t)cell & 0x7;
+inline bool gc_maybe_pointer(Value val) {
+    uintptr_t tag = (uintptr_t)val & 0x7;
 
     return tag == 0 || tag == 0x3;
 }
@@ -66,8 +70,8 @@ void Allocator::collect_core(void *stack_bottom) {
             ValueCell *cell = gc_ensure_pointer(*iter);
 
             // loop through chunks
-            for (size_t i = 0; i < chunks.size(); i++) {
-                Chunk *c = chunks[i];
+            for (size_t chunki = 0; chunki < chunks.size(); chunki++) {
+                Chunk *c = chunks[chunki];
 
                 // is val a valid pointer to this chunk?
                 if (cell >= c->mem && cell < c->mem + size) {
@@ -86,20 +90,17 @@ void Allocator::collect_core(void *stack_bottom) {
                     // recurse to referenced values
 
                     if (gc_is_tagged(cell)) {
-                        Value val = cell;
+                        TypeEntry *ent = get_type_entry(gc_get_type(cell));
 
-                        switch (gc_get_type(cell)) {
-                            case Type::func:
-                                new_roots.push_back(val->tagged.value);
-                                continue;
+                        if (ent->find_refs) {
+                            int num = ent->find_refs(cell->ptr, value_buf);
 
-                            default: break;
+                            for (int i = 0; i < num; i++)
+                                new_roots.push_back(value_buf[i]);
                         }
                     } else { // cons
-                        Value val = cell;
-
-                        new_roots.push_back(car(val));
-                        new_roots.push_back(cdr(val));
+                        new_roots.push_back(car((Value)cell));
+                        new_roots.push_back(cdr((Value)cell));
                     }
 
                     break;
@@ -107,16 +108,16 @@ void Allocator::collect_core(void *stack_bottom) {
             }
         }
 
-        /*for (size_t i = 0; i < chunks.size(); i++) {
-            Chunk *c = chunks[i];
-
-            printf("Chunk %lu marks: ", i);
-
-            for (int offs = 0; offs < size; offs++)
-                putchar(c->marks[offs / 8] & (1 << (offs % 8)) ? '1' : '0');
-
-            printf("\n");
-        }*/
+        //for (size_t i = 0; i < chunks.size(); i++) {
+        //    Chunk *c = chunks[i];
+        //
+        //    printf("Chunk %lu marks: ", i);
+        //
+        //    for (int offs = 0; offs < size; offs++)
+        //        putchar(c->marks[offs / 8] & (1 << (offs % 8)) ? '1' : '0');
+        //
+        //    printf("\n");
+        //}
 
         roots.assign(new_roots.begin(), new_roots.end());
         new_roots.clear();
@@ -144,23 +145,16 @@ void Allocator::collect_core(void *stack_bottom) {
             // free referenced values
 
             if (gc_is_tagged(cell)) {
-                Value val = cell;
+                TypeEntry *ent = get_type_entry(gc_get_type(cell));
 
-                switch (gc_get_type(cell)) {
-                    case Type::str:
-                        free(val->tagged.str);
-                        break;
-
-                    // Type::func points to a list which doesn't need special treatment
-
-                    default: break;
-                }
+                if (ent->destructor)
+                    ent->destructor(cell->ptr);
             }
 
             // put cell back on free list
 
-            cell->tag = 0x7; // nil tag
-            cell->tagged.next_free = c->first_free;
+            cell->tag = tag_free; // nil tag
+            cell->next_free = c->first_free;
             c->first_free = cell;
 
             c->free++;
@@ -191,7 +185,7 @@ Value Allocator::alloc() {
 
     Value allocated = c->first_free;
 
-    c->first_free = c->first_free->tagged.next_free;
+    c->first_free = c->first_free->next_free;
     c->free--;
 
     return allocated;
@@ -246,8 +240,8 @@ void Allocator::new_chunk() {
     ValueCell *v = c->mem;
 
     for (int i = 0; i < size; i++, v++) {
-        v->tag = 0x7; // nil tag
-        v->tagged.next_free = (i < size - 1) ? v + 1 : nullptr;
+        v->tag = tag_free; // nil tag
+        v->next_free = (i < size - 1) ? v + 1 : nullptr;
     }
 
     c->first_free = c->mem;
@@ -286,14 +280,11 @@ const char *Allocator::sym_name(Value sym) {
 }
 
 Value Allocator::func(Value env, Value arg_names, Value body, Value name) {
-    Value v = alloc();
-    v->tagged.value =
+    return ptr(Type::func,
         cons(env,
         cons(arg_names,
         cons(body,
-        cons(name, nil))));
-
-    return tag(v, Type::func);
+        cons(name, nil)))));
 }
 
 const char *Allocator::func_name(Value func) {
@@ -306,20 +297,34 @@ const char *Allocator::func_name(Value func) {
 }
 
 Value Allocator::builtin(BuiltinFunc func) {
-    Value v = alloc();
-    v->tagged.builtin_func = func;
-
-    return tag(v, Type::builtin);
+    return fptr(Type::builtin, (VoidFunc)func);
 }
 
 Value Allocator::str(const char *s) {
     char *copy = (char *)malloc(strlen(s) + 1);
     strcpy(copy, s);
 
-    Value v = alloc();
-    v->tagged.str = copy;
+    return ptr(Type::str, copy);
+}
 
-    return tag(v, Type::str);
+static inline Value tag(Value val, Type type) {
+    val->tag = ((uintptr_t)type << 3) | 0x7;
+
+    return (Value)((uintptr_t)val | 0x3);
+}
+
+Value Allocator::ptr(Type type, void *ptr) {
+    Value v = alloc();
+    v->ptr = ptr;
+
+    return tag(v, type);
+}
+
+Value Allocator::fptr(Type type, VoidFunc fptr) {
+    Value v = alloc();
+    v->fptr = fptr;
+
+    return tag(v, type);
 }
 
 }

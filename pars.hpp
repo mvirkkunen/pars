@@ -6,6 +6,8 @@
 
 namespace pars {
 
+void initialize();
+
 using SyntaxFunc = Value (*)(Context &, Value, Value, bool);
 
 class Context {

@@ -28,12 +28,6 @@ class Allocator {
 
     Value alloc();
 
-    Value tag(Value val, Type tag) {
-        val->tag = ((uintptr_t)tag << 3) | 0x7;
-
-        return (Value)((uintptr_t)val | 0x3);
-    }
-
 public:
 
     Allocator(int size);
@@ -65,6 +59,9 @@ public:
     Value builtin(BuiltinFunc func);
 
     Value str(const char *s);
+
+    Value ptr(Type type, void *ptr);
+    Value fptr(Type type, VoidFunc ptr);
 };
 
 }

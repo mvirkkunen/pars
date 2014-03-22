@@ -1,6 +1,36 @@
+#include <vector>
+#include <cstdio>
 #include "values.hpp"
 
 namespace pars {
+
+static std::vector<TypeEntry> types;
+
+static int find_ref_value(void *ptr, Value *refs) {
+    refs[0] = (Value)ptr;
+    return 1;
+}
+
+static void destructor_str(void *ptr) {
+    free(ptr);
+}
+
+void register_builtin_types() {
+    types.clear();
+
+    // The order of these shall match the pre-defined values of Type
+
+    // Immediate types
+    register_type("nil", nullptr, nullptr);
+    register_type("cons", nullptr, nullptr);
+    register_type("num", nullptr, nullptr);
+    register_type("sym", nullptr, nullptr);
+
+    // Actually tagged types
+    register_type("func", find_ref_value, nullptr);
+    register_type("builtin", nullptr, nullptr);
+    register_type("str", nullptr, destructor_str);
+}
 
 Type type_of(Value val) {
     uintptr_t ival = (uintptr_t)val;
@@ -16,24 +46,26 @@ Type type_of(Value val) {
     else if (tag == 0x2)
         return Type::sym;
 
-    Type type = (Type)(tagged_val(val)->tag >> 3);
-
-    return (type == Type::nil) ? Type::free : type;
+    return tagged_type(val);
 }
 
 const char *type_name(Type t) {
-    switch (t) {
-        case Type::nil: return "nil";
-        case Type::func: return "func";
-        case Type::builtin: return "builtin";
-        case Type::str: return "str";
-        case Type::cons: return "cons";
-        case Type::num: return "num";
-        case Type::sym: return "sym";
-        case Type::free: return "FREE";
-    }
+    return types[(size_t)t].name;
+}
 
-    return "error";
+Type register_type(const char *name, FindRefsFunc find_refs, DestructorFunc destructor) {
+    TypeEntry ent;
+    ent.name = name;
+    ent.find_refs = find_refs;
+    ent.destructor = destructor;
+
+    types.push_back(ent);
+
+    return (Type)(types.size() - 1);
+}
+
+TypeEntry *get_type_entry(Type t) {
+    return &types[(size_t)t];
 }
 
 }
