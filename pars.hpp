@@ -8,6 +8,11 @@ namespace pars {
 
 void initialize();
 
+struct String {
+    int len;
+    char data[];
+};
+
 using SyntaxFunc = Value (*)(Context &, Value, Value, bool);
 
 class Context {
@@ -85,8 +90,12 @@ inline BuiltinFunc builtin_val(Value builtin) {
     return (BuiltinFunc)fptr_of(builtin);
 }
 
-inline char *str_val(Value str) {
-    return (char *)ptr_of(str);
+inline int str_len(Value str) {
+    return ((String *)ptr_of(str))->len;
+}
+
+inline char *str_data(Value str) {
+    return ((String *)ptr_of(str))->data;
 }
 
 }

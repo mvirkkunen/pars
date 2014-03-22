@@ -87,7 +87,7 @@ Value length(Context &c, Value args) {
 Value print(Context &c, Value args) {
     for (Value item = args; is_cons(item); item = cdr(item)) {
         if (type_of(car(item)) == Type::str) {
-            printf("%s", str_val(car(item)));
+            printf("%.*s", str_len(car(item)), str_data(car(item)));
         } else {
             c.print(car(item), false);
             printf(" ");

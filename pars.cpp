@@ -80,10 +80,13 @@ Value Context::builtin(BuiltinFunc func) {
 }
 
 Value Context::str(const char *s) {
-    char *copy = (char *)malloc(strlen(s) + 1);
-    strcpy(copy, s);
+    size_t len = strlen(s);
 
-    return ptr(Type::str, copy);
+    String *str = (String *)malloc(sizeof(String) + len);
+    str->len = len;
+    strcpy(str->data, s);
+
+    return ptr(Type::str, str);
 }
 
 Value Context::apply(Value func, Value args) {
@@ -604,7 +607,7 @@ void Context::print(Value val, bool newline) {
             break;
 
         case Type::str:
-            printf("\"%s\"", str_val(val));
+            printf("\"%.*s\"", str_len(val), str_data(val));
             break;
 
         default:
