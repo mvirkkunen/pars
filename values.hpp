@@ -57,6 +57,14 @@ inline Value cdr(Value cons) { return cons->cdr; }
 inline void set_car(Value cons, Value car) { cons->car = car; }
 inline void set_cdr(Value cons, Value cdr) { cons->cdr = cdr; }
 
+inline Value caar(Value cons) { return car(car(cons)); }
+inline Value cadr(Value cons) { return car(cdr(cons)); }
+inline Value cdar(Value cons) { return cdr(car(cons)); }
+inline Value cddr(Value cons) { return cdr(cdr(cons)); }
+
+inline Value caddr(Value cons) { return car(cdr(cdr(cons))); }
+inline Value cadddr(Value cons) { return car(cdr(cdr(cdr(cons)))); }
+
 inline int num_val(Value num) {
     return (int)((uintptr_t)num & 0xFFFFFFFC) >> 2;
 }
@@ -71,6 +79,10 @@ inline int sym_val(Value sym) {
 
 inline void *ptr_of(Value val) {
     return ((Value)((char *)val - 3))->ptr;
+}
+
+inline void set_ptr_of(Value val, void *ptr) {
+    ((Value)((char *)val - 3))->ptr = ptr;
 }
 
 inline bool is_nil(Value val) { return (uintptr_t)val == 0; }

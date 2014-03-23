@@ -32,6 +32,9 @@ Context::Context() : alloc(1024), cur_func(nil), will_tail_call(false) {
     _str_empty = str("");
 
     builtins::define_all(*this);
+
+    env_define(root_env, sym("true"), boolean(true));
+    env_define(root_env, sym("false"), boolean(false));
 }
 
 Value Context::func(Value env, Value arg_names, Value body, Value name) {
@@ -43,7 +46,7 @@ Value Context::func(Value env, Value arg_names, Value body, Value name) {
 }
 
 const char *Context::func_name(Value func) {
-    Value name = car(cdr(cdr(cdr(func_val(func)))));
+    Value name = cadddr(func_val(func));
 
     if (is_sym(name))
         return sym_name(name);
@@ -182,8 +185,8 @@ Value Context::apply(Value func, Value args) {
             Value value = func_val(func);
 
             Value env = car(value),
-                  arg_names = car(cdr(value)),
-                  body = car(cdr(cdr(value)));
+                  arg_names = cadr(value),
+                  body = caddr(value);
 
             Value func_env = make_env(env);
 
@@ -254,7 +257,7 @@ Value Context::apply(Value func, Value args) {
             return call_native_func(info->func, nargs, aargs);
         }
 
-        default: return error("Invalid application");
+        default: print(func); print(args); return error("Invalid application");
     }
 }
 
@@ -323,17 +326,33 @@ bool Context::parse(char **source, Value &result) {
             return true;
         }
     } else if (*s == '"') {
-        char *start = s + 1;
+        std::vector<char> buf;
 
         s++;
 
-        for (; *s && *s != '"'; s++)
-            ;
+        bool escape = false;
+        for (; *s && *s != '"'; s++) {
+            if (escape) {
+                switch (*s) {
+                    case '\\': buf.push_back('\\'); break;
+                    case '"': buf.push_back('"'); break;
+                    case 'r': buf.push_back('\r'); break;
+                    case 'n': buf.push_back('\n'); break;
+                    default:
+                        result = error("Invalid escape sequence");
+                        return false;
+                }
+
+                escape = false;
+            } else if (*s == '\\') {
+                escape = true;
+            } else {
+                buf.push_back(*s);
+            }
+        }
 
         if (*s == '"') {
-            char *slice = strslice(start, s);
-            result = str(slice);
-            free(slice);
+            result = str(&buf[0], (int)buf.size());
 
             s++;
 
@@ -394,8 +413,25 @@ void Context::env_undefine(Value env, Value key) {
             return;
         }
 
-        env = vars;
+        prev = vars;
     }
+}
+
+bool Context::env_set(Value env, Value key, Value value) {
+    Value vars = cdr(env);
+
+    for (; is_cons(vars); vars = cdr(vars)) {
+        if (is_cons(car(vars)) && car(car(vars)) == key) {
+            set_cdr(car(vars), value);
+            return true;
+        }
+    }
+
+    if (!is_nil(car(env)))
+        return env_set(car(env), key, value);
+
+    error("Attempted to set undefined variable: '%s'", sym_name(key));
+    return false;
 }
 
 Value Context::env_get(Value env, Value key) {
@@ -406,7 +442,7 @@ Value Context::env_get(Value env, Value key) {
             return cdr(car(vars));
     }
 
-    if (is_cons(car(env)))
+    if (!is_nil(car(env)))
         return env_get(car(env), key);
 
     return error("Not defined: '%s'", sym_name(key));

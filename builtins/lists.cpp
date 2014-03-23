@@ -2,34 +2,6 @@
 
 namespace pars { namespace builtins {
 
-BUILTIN("nil?") nil_p(Context &c, Value val) {
-    (void)c;
-
-    return c.boolean(is_nil(val));
-}
-
-BUILTIN("cons") cons_(Context &c, Value car, Value cdr) {
-    return c.cons(car, cdr);
-}
-
-BUILTIN("cons?") cons_p(Context &c, Value val) {
-    return c.boolean(is_cons(val));
-}
-
-BUILTIN("car") car_(Context &c, Value cons) {
-    (void)c;
-    VERIFY_ARG_CONS(cons, 1);
-
-    return car(cons);
-}
-
-BUILTIN("cdr") cdr_(Context &c, Value cons) {
-    (void)c;
-    VERIFY_ARG_CONS(cons, 1);
-
-    return cdr(cons);
-}
-
 BUILTIN("list") list(Context &c, Value rest) {
     (void)c;
 

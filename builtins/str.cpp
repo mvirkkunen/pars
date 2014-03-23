@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cstdio>
 
 #include "builtins.hpp"
 
@@ -86,6 +87,96 @@ BUILTIN("str-cat") str_cat(Context &c, Value rest) {
     str->data[len] = '\0';
 
     return c.ptr(Type::str, str);
+}
+
+BUILTIN("str-index-of") str_index_of(Context &c, Value str_, Value find_, Value _start_) {
+    VERIFY_ARG_STR(str_, 1);
+    VERIFY_ARG_STR(find_, 2);
+
+    int start = 0;
+    if (!is_nil(_start_)) {
+        VERIFY_ARG_NUM(_start_, 3);
+        start = num_val(_start_);
+    }
+
+    if (start > str_len(str_))
+        return c.error("String index out of range");
+
+    if (str_len(find_) == 0)
+        return c.num(0);
+
+    char *str = str_data(str_), *find = str_data(find_);
+    int strl = str_len(str_), findl = str_len(find_);
+
+    for (int i = start, fi = 0; i < strl; i++) {
+        if (str[i] == find[fi]) {
+            fi++;
+            if (fi == findl)
+                return c.num(i);
+        } else {
+            fi = 0;
+        }
+    }
+
+    return c.num(-1);
+}
+
+BUILTIN("->string") to_string(Context &c, Value val) {
+    switch (type_of(val)) {
+        case Type::nil:
+            return c.str("()");
+            break;
+
+        case Type::cons:
+            {
+                // This is so wildly inefficient it's not even funny
+
+                Value res = c.str("(");
+
+                while (true) {
+                    res = str_cat(c, c.cons(to_string(c, car(val)), nil));
+
+                    if (type_of(cdr(val)) != Type::cons) {
+                        if (type_of(cdr(val)) != Type::nil) {
+                            res = str_cat(c, c.cons(c.str(" . "), nil));
+                            res = str_cat(c, c.cons(to_string(c, cdr(val)), nil));
+                        }
+
+                        break;
+                    }
+
+                    res = str_cat(c, c.cons(c.str(" "), nil));
+
+                    val = cdr(val);
+                }
+
+                res = str_cat(c, c.cons(c.str(")"), nil));
+
+                return res;
+            }
+
+            break;
+
+        case Type::num:
+            {
+                char buf[20];
+                snprintf(buf, sizeof(buf), "%d", num_val(val));
+
+                return c.str(buf);
+            }
+            break;
+
+        case Type::sym:
+            return c.str(sym_name(val));
+            break;
+
+        case Type::str:
+            return val;
+
+        default:
+            return c.str(type_name(type_of(val)));
+            break;
+    }
 }
 
 } }

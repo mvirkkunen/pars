@@ -24,13 +24,18 @@ SYNTAX("begin") begin(Context &c, Value env, Value args, bool tail_position) {
 
 // (if test then else)
 SYNTAX("if") if_(Context &c, Value env, Value args, bool tail_position) {
+    if (is_nil(car(args)) || is_nil(cdr(args)) || is_nil(cadr(args)))
+        return c.error("Invalid if");
+
     Value res = c.eval(env, car(args));
     if (c.failing())
         return nil;
 
     return is_truthy(res)
-        ? c.eval(env, car(cdr(args)), tail_position)
-        : c.eval(env, car(cdr(cdr(args))), tail_position);
+        ? c.eval(env, cadr(args), tail_position)
+        : !is_nil(cddr(args))
+        ? c.eval(env, caddr(args), tail_position)
+        : nil;
 }
 
 SYNTAX("define") define(Context &c, Value env, Value args, bool tail_position) {
@@ -70,6 +75,21 @@ SYNTAX("lambda") lambda(Context &c, Value env, Value args, bool tail_position) {
         car(args),
         cdr(args),
         nil);
+}
+
+SYNTAX("set!") set(Context &c, Value env, Value args, bool tail_position) {
+    (void)tail_position;
+
+    if (!is_cons(args) || !is_sym(car(args)) || !is_cons(cdr(args)))
+        return c.error("Invalid set!");
+
+    Value val = c.eval(env, cadr(args));
+    if (c.failing())
+        return nil;
+
+    c.env_set(env, car(args), val);
+
+    return nil;
 }
 
 } }

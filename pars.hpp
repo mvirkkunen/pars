@@ -74,6 +74,7 @@ public:
 
     inline Value make_env(Value parent) { return cons(parent, nil); }
     void env_define(Value env, Value key, Value value);
+    bool env_set(Value env, Value key, Value value);
     void env_undefine(Value env, Value key);
     Value env_get(Value env, Value key);
 
