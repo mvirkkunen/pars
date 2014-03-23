@@ -10,3 +10,5 @@
 
 (print "factorial of 10, recursive: " (fact1 10))
 (print "factorial of 10, iterative: " (fact2 10))
+
+(print (str-cat "Hello, " "world!"))
