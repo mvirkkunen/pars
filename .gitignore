@@ -1,2 +1,3 @@
 pars
+*.o
 builtins/generated.*
