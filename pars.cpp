@@ -16,7 +16,7 @@ static int find_ref_value(void *ptr, Value *refs) {
 void register_builtin_types() {
     // The order of these shall match the pre-defined values of Type
     register_type("func", find_ref_value, nullptr);
-    register_type("native", nullptr, nullptr);
+    register_type("native", nullptr, free);
     register_type("str", nullptr, free);
 }
 
@@ -51,8 +51,22 @@ const char *Context::func_name(Value func) {
     return "<lambda>";
 }
 
-Value Context::native(NativeFunc func) {
-    return fptr(Type::native, (VoidFunc)func);
+Value Context::native(NativeInfo *info) {
+    NativeInfo *copy = (NativeInfo *)malloc(sizeof(NativeInfo));
+    memcpy(copy, info, sizeof(NativeInfo));
+
+    return ptr(Type::native, copy);
+}
+
+Value Context::native(const char *name, int nreq, int nopt, bool has_rest, VoidFunc func) {
+    NativeInfo *info = (NativeInfo *)malloc(sizeof(NativeInfo));
+    info->name = name;
+    info->nreq = nreq;
+    info->nopt = nopt;
+    info->has_rest = has_rest;
+    info->func = func;
+
+    return ptr(Type::native, info);
 }
 
 Value Context::str(const char *s) {
@@ -60,7 +74,7 @@ Value Context::str(const char *s) {
 
     String *str = (String *)malloc(sizeof(String) + len);
     str->len = len;
-    strcpy(str->data, s);
+    memcpy(str->data, s, len);
 
     return ptr(Type::str, str);
 }
@@ -82,17 +96,20 @@ Value Context::apply(Value func, Value args) {
 tail_call:
     for (Value name = arg_names; is_cons(name); args = cdr(args), name = cdr(name)) {
         if (!is_cons(args))
-            return error("Not enough arguments for function");
+            return error("Too few arguments for function");
 
         env_define(func_env, car(name), car(args));
     }
+
+    if (!is_nil(args))
+        return error("Too many arguments for function");
 
     Value result = nil;
     for (Value e = body; is_cons(e); e = cdr(e)) {
         result = eval(func_env, car(e), is_nil(cdr(e)));
 
         if (failing()) {
-            // TODO: maybe report function name for debuggin?
+            // TODO: maybe report function name for debugging?
             return nil;
         }
 
@@ -224,43 +241,6 @@ void Context::reset() {
     _failing = false;
 }
 
-bool Context::extract_one(Value arg, char type, void *dest) {
-    switch (type) {
-        case 'l': {
-            Value item = arg;
-            bool first = true;
-            for (; is_cons(item); item = cdr(item)) {
-                if (!first && item == arg) {
-                    error("Value is not a list (circular reference)");
-                    return false;
-                }
-
-                first = false;
-            }
-
-            if (is_nil(item)) {
-                *(Value *)dest = arg;
-                return true;
-            }
-
-            error("Value is not a list");
-            return false;
-        }
-        case 'n': {
-            if (!is_num(arg)) {
-                error("Value is not a number");
-                return false;
-            }
-
-            *(int *)dest = num_val(arg);
-            return true;
-        }
-    }
-
-    error("Bad extraction: '%c'", type);
-    return false;
-}
-
 void Context::env_define(Value env, Value key, Value value) {
     Value vars = cdr(env);
 
@@ -322,6 +302,30 @@ Value Context::eval_list(Value env, Value list) {
     return result;
 }
 
+Value Context::call_native_func(VoidFunc func, int nargs, Value *args) {
+    switch (nargs) {
+        case 0: return ((Value (*)(Context &))func)(*this);
+
+        case 1: return ((Value (*)(Context &, Value))func)(*this, args[0]);
+
+        case 2: return ((Value (*)(Context &, Value, Value))func)(*this, args[0], args[1]);
+
+        case 3:
+            return ((Value (*)(Context &, Value, Value, Value))func)
+                (*this, args[0], args[1], args[2]);
+
+        case 4:
+            return ((Value (*)(Context &, Value, Value, Value, Value))func)
+                (*this, args[0], args[1], args[2], args[3]);
+
+        case 5:
+            return ((Value (*)(Context &, Value, Value, Value, Value, Value))func)
+                (*this, args[0], args[1], args[2], args[3], args[4]);
+
+        default: return error("Native func has too many arguments.");
+    }
+}
+
 Value Context::eval(Value env, Value expr, bool tail_position) {
     switch (type_of(expr)) {
         case Type::nil:
@@ -358,14 +362,42 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
                 return apply(func, args);
             }
 
-            if (type_of(func) == Type::native)
-                return native_val(func)(*this, args);
+            if (type_of(func) == Type::native) {
+                NativeInfo *info = (NativeInfo *)ptr_of(func);
 
-            return error("eval: Invalid application");
+                int nargs = 0;
+                Value aargs[5];
+
+                for (int i = 0; i < info->nreq; i++) {
+                    if (is_nil(args))
+                        return error("Too few arguments for function");
+
+                    aargs[nargs++] = car(args);
+                    args = cdr(args);
+                }
+
+                for (int i = 0; i < info->nopt; i++) {
+                    if (!is_nil(args)) {
+                        aargs[nargs++] = car(args);
+                        args = cdr(args);
+                    } else {
+                        aargs[nargs++] = nil;
+                    }
+                }
+
+                if (info->has_rest)
+                    aargs[nargs++] = args;
+                else if (!is_nil(args))
+                    return error("Too many arguments for function");
+
+                return call_native_func(info->func, nargs, aargs);
+            }
+
+            return error("Invalid application");
         }
 
         default:
-            return error("eval: Invalid evaluation");
+            return error("Invalid evaluation");
     }
 }
 
@@ -381,88 +413,12 @@ Value Context::error(const char *msg, ...) {
     return nil;
 }
 
-// Format:
-//  n = number -> int n
-//  l = list (will validate) -> Value list
-//  * = extract next token as array -> type *arr, int count
-bool Context::extract(Value args, const char *format, ...) {
-    va_list va;
-    va_start(va, format);
-
-    const char *fp = format;
-    Value arg = args;
-
-    for (; is_cons(arg) && *fp; arg = cdr(arg), fp++) {
-        char type = *fp;
-
-        switch (type) {
-            case '*': {
-                fp++;
-                type = *fp;
-
-                size_t value_size;
-
-                switch (type) {
-                    case 'n': value_size = sizeof(int); break;
-                    default:
-                        error("Bad array extraction: '%c'", type);
-                        goto out;
-                }
-
-                Value list;
-                if (!extract_one(arg, 'l', &list))
-                    goto out;
-
-                int count = 0;
-                for (Value item = list; is_cons(item); item = cdr(item))
-                    count++;
-
-                char *result = (char *)malloc(count * value_size);
-
-                int index = 0;
-                for (Value item = list; is_cons(item); item = cdr(item)) {
-                    if (!extract_one(car(item), type, result + (index * value_size))) {
-                        free(result);
-                        goto out;
-                    }
-
-                    index++;
-                }
-
-                *va_arg(va, void **) = result;
-                *va_arg(va, int *) = count;
-
-                arg = nil;
-                fp++;
-
-                // Consumed all arguments
-                goto out;
-            }
-
-            default:
-                if (!extract_one(car(arg), type, va_arg(va, void *)))
-                    goto out;
-        }
-    }
-
-out:
-    va_end(va);
-
-    if (*fp) {
-        error("Too few arguments.");
-        return false;
-    }
-
-    if (!is_nil(arg)) {
-        error("Too many arguments.");
-        return false;
-    }
-
-    return true;
+void Context::define_native(const char *name, NativeInfo *info) {
+    env_define(root_env, sym(name), native(info));
 }
 
-void Context::define_native(const char *name, NativeFunc func) {
-    env_define(root_env, sym(name), native(func));
+void Context::define_native(const char *name, int nreq, int nopt, bool has_rest, VoidFunc func) {
+    env_define(root_env, sym(name), native(name, nreq, nopt, has_rest, func));
 }
 
 void Context::define_syntax(const char *name, SyntaxFunc func) {

@@ -4,44 +4,38 @@
 
 namespace pars { namespace builtins {
 
-BUILTIN("+", add) {
+BUILTIN("+", add, (Context &c, Value rest), 0, 0, 1) {
     int a = 0;
-    for (Value i = args; is_cons(i); i = cdr(i)) {
-        if (!is_num(car(i)))
-            return c.error("Wrong type of argument");
+    for (; is_cons(rest); rest = cdr(rest)) {
+        VERIFY_ARG_NUM(car(rest), 1);
 
-        a += num_val(car(i));
+        a += num_val(car(rest));
     }
 
     return c.num(a);
 }
 
-BUILTIN("*", mul) {
+BUILTIN("*", mul, (Context &c, Value rest), 0, 0, 1) {
     int a = 1;
-    for (Value i = args; is_cons(i); i = cdr(i)) {
-        if (!is_num(car(i)))
-            return c.error("Wrong type of argument");
+    for (; is_cons(rest); rest = cdr(rest)) {
+        VERIFY_ARG_NUM(car(rest), 1);
 
-        a *= num_val(car(i));
+        a *= num_val(car(rest));
     }
 
     return c.num(a);
 }
 
-BUILTIN("-", sub) {
-    if (is_nil(args))
-        return c.error("Too few arguments");
-
-    Value first = car(args), rest = cdr(args);
-    if (!is_cons(rest))
-        return c.num(-num_val(first));
-
+BUILTIN("-", sub, (Context &c, Value first, Value rest), 1, 0, 1) {
     int a = num_val(first);
-    for (Value i = rest; is_cons(i); i = cdr(i)) {
-        if (!is_num(car(i)))
-            return c.error("Wrong type of argument");
 
-        a -= num_val(car(i));
+    if (is_nil(rest))
+        return c.num(-a);
+
+    for (; is_cons(rest); rest = cdr(rest)) {
+        VERIFY_ARG_NUM(car(rest), 1);
+
+        a -= num_val(car(rest));
     }
 
     return c.num(a);
@@ -49,31 +43,31 @@ BUILTIN("-", sub) {
 
 #define CMP_BUILTIN(OP) \
     { \
-        if (!is_nil(args)) { \
-            for (Value prev = car(args), i = cdr(args); is_cons(i); i = cdr(i)) { \
-                if (!is_num(prev) || !is_num(car(i))) \
-                    return c.error("Wrong type of argument"); \
-                if (!(num_val(prev) OP num_val(car(i)))) \
+        if (!is_nil(first)) {\
+            VERIFY_ARG_NUM(first, 1); \
+            for (Value prev = first; is_cons(rest); rest = cdr(rest)) { \
+                VERIFY_ARG_NUM(car(rest), 2); \
+                if (!(num_val(prev) OP num_val(car(rest)))) \
                     return nil; \
-                prev = car(i); \
+                prev = car(rest); \
             } \
         } \
         return c.num(1); \
     }
 
-BUILTIN(">", gt)
+BUILTIN(">", gt, (Context &c, Value first, Value rest), 0, 1, 1)
 CMP_BUILTIN(>)
 
-BUILTIN("<", lt)
+BUILTIN("<", lt, (Context &c, Value first, Value rest), 0, 1, 1)
 CMP_BUILTIN(<)
 
-BUILTIN(">=", gte)
+BUILTIN(">=", gte, (Context &c, Value first, Value rest), 0, 1, 1)
 CMP_BUILTIN(>=)
 
-BUILTIN("<=", lte)
+BUILTIN("<=", lte, (Context &c, Value first, Value rest), 0, 1, 1)
 CMP_BUILTIN(<=)
 
-BUILTIN("=", eq)
+BUILTIN("=", eq, (Context &c, Value first, Value rest), 0, 1, 1)
 CMP_BUILTIN(==)
 
 #undef CMP_BUILTIN

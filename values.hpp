@@ -19,11 +19,9 @@ enum class Type : uintptr_t  {
     // tagged:      x011
     // Rest of bits is a pointer to tagged value cell
     func = 4,    // ptr = (list env arg_names body name)
-    native = 5,  // fptr = ptr to func
+    native = 5,  // ptr = NativeInfo instance
     str = 6,     // ptr = String instance
 };
-
-using VoidFunc = void (*)();
 
 struct ValueCell {
     union {
@@ -33,7 +31,6 @@ struct ValueCell {
             uintptr_t tag;
             union {
                 void *ptr;
-                VoidFunc fptr;
                 Value next_free;
             };
         };
@@ -74,10 +71,6 @@ inline int sym_val(Value sym) {
 
 inline void *ptr_of(Value val) {
     return ((Value)((char *)val - 3))->ptr;
-}
-
-inline VoidFunc fptr_of(Value val) {
-    return ((Value)((char *)val - 3))->fptr;
 }
 
 inline bool is_nil(Value val) { return (uintptr_t)val == 0; }

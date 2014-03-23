@@ -262,11 +262,4 @@ Value Allocator::ptr(Type type, void *ptr) {
     return tag(v, type);
 }
 
-Value Allocator::fptr(Type type, VoidFunc fptr) {
-    Value v = alloc();
-    v->fptr = fptr;
-
-    return tag(v, type);
-}
-
 }

@@ -49,7 +49,6 @@ public:
     }
 
     Value ptr(Type type, void *ptr);
-    Value fptr(Type type, VoidFunc fptr);
 };
 
 }

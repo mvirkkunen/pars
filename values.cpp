@@ -4,7 +4,15 @@
 
 namespace pars {
 
-static std::vector<const char *> sym_names;
+class symvector : public std::vector<const char *> {
+public:
+    ~symvector() {
+        for (size_t i = 0; i < size(); i++)
+            free((void *)(*this)[i]);
+    }
+};
+
+static symvector sym_names;
 
 static std::vector<TypeInfo> types;
 
