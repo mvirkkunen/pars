@@ -470,7 +470,7 @@ void Context::define_native(const char *name, NativeFunc func) {
 }
 
 void Context::define_syntax(const char *name, SyntaxFunc func) {
-    syntax.emplace_back(SyntaxEntry { sym(name), func });
+    syntax.emplace_back(SyntaxInfo { sym(name), func });
 }
 
 Value Context::exec(char *code, bool report_errors, bool print_results) {

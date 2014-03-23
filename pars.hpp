@@ -16,12 +16,12 @@ using SyntaxFunc = Value (*)(Context &, Value, Value, bool);
 using NativeFunc = Value (*)(Context &ctx, Value args);
 
 class Context {
-    struct SyntaxEntry {
+    struct SyntaxInfo {
         Value sym;
         SyntaxFunc func;
     };
 
-    std::vector<SyntaxEntry> syntax;
+    std::vector<SyntaxInfo> syntax;
     Allocator alloc;
 
     Value root_env;

@@ -91,10 +91,10 @@ void Allocator::collect_core(void *stack_bottom) {
                     // recurse to referenced values
 
                     if (gc_is_tagged(cell)) {
-                        TypeEntry *ent = get_type_entry(gc_get_type(cell));
+                        TypeInfo *info = get_type_info(gc_get_type(cell));
 
-                        if (ent->find_refs) {
-                            int num = ent->find_refs(cell->ptr, value_buf);
+                        if (info->find_refs) {
+                            int num = info->find_refs(cell->ptr, value_buf);
 
                             for (int i = 0; i < num; i++)
                                 new_roots.push_back(value_buf[i]);
@@ -146,10 +146,10 @@ void Allocator::collect_core(void *stack_bottom) {
             // free referenced values
 
             if (gc_is_tagged(cell)) {
-                TypeEntry *ent = get_type_entry(gc_get_type(cell));
+                TypeInfo *info = get_type_info(gc_get_type(cell));
 
-                if (ent->destructor)
-                    ent->destructor(cell->ptr);
+                if (info->destructor)
+                    info->destructor(cell->ptr);
             }
 
             // put cell back on free list

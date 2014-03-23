@@ -6,14 +6,14 @@ namespace pars {
 
 static std::vector<const char *> sym_names;
 
-static std::vector<TypeEntry> types;
+static std::vector<TypeInfo> types;
 
 void register_builtin_types();
 
-static std::vector<TypeEntry> &ensure_types() {
+static std::vector<TypeInfo> &ensure_types() {
     if (types.size() == 0) {
         // Immediate types
-        types.emplace_back(TypeEntry { "nil", nullptr, nullptr });
+        types.emplace_back(TypeInfo { "nil", nullptr, nullptr });
         register_type("cons", nullptr, nullptr);
         register_type("num", nullptr, nullptr);
         register_type("sym", nullptr, nullptr);
@@ -50,12 +50,12 @@ const char *type_name(Type t) {
 }
 
 Type register_type(const char *name, FindRefsFunc find_refs, DestructorFunc destructor) {
-    ensure_types().emplace_back(TypeEntry { name, find_refs, destructor });
+    ensure_types().emplace_back(TypeInfo { name, find_refs, destructor });
 
     return (Type)(ensure_types().size() - 1);
 }
 
-TypeEntry *get_type_entry(Type t) {
+TypeInfo *get_type_info(Type t) {
     return &ensure_types()[(size_t)t];
 }
 

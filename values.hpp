@@ -47,7 +47,7 @@ struct ValueCell {
 using FindRefsFunc = int (*)(void *ptr, Value *refs);
 using DestructorFunc = void (*)(void *ptr);
 
-struct TypeEntry {
+struct TypeInfo {
     const char *name;
     FindRefsFunc find_refs;
     DestructorFunc destructor;
@@ -92,6 +92,6 @@ const char *type_name(Type t);
 
 Type register_type(const char *name, FindRefsFunc find_refs, DestructorFunc destructor);
 
-TypeEntry *get_type_entry(Type t);
+TypeInfo *get_type_info(Type t);
 
 }
