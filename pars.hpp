@@ -34,6 +34,8 @@ class Context {
 
     Value root_env;
 
+    Value _str_empty;
+
     Value cur_func;
     bool will_tail_call;
 
@@ -66,6 +68,8 @@ public:
     Value func(Value env, Value arg_names, Value body, Value name);
     const char *func_name(Value func);
     Value str(const char *s);
+    Value str(const char *s, int len);
+    Value str_empty() { return _str_empty; }
 
     inline Value make_env(Value parent) { return cons(parent, nil); }
     void env_define(Value env, Value key, Value value);

@@ -31,6 +31,8 @@ Context::Context() : alloc(1024), cur_func(nil), will_tail_call(false) {
     root_env = make_env(nil);
     alloc.pin(root_env);
 
+    _str_empty = str("");
+
     builtins::define_all(*this);
 }
 
@@ -70,11 +72,14 @@ Value Context::native(const char *name, int nreq, int nopt, bool has_rest, VoidF
 }
 
 Value Context::str(const char *s) {
-    size_t len = strlen(s);
+    return str(s, strlen(s));
+}
 
-    String *str = (String *)malloc(sizeof(String) + len);
+Value Context::str(const char *s, int len) {
+    String *str = (String *)malloc(sizeof(String) + len + 1);
     str->len = len;
     memcpy(str->data, s, len);
+    str->data[len] = '\0';
 
     return ptr(Type::str, str);
 }
