@@ -13,15 +13,11 @@ static int find_ref_value(void *ptr, Value *refs) {
     return 1;
 }
 
-static void destructor_str(void *ptr) {
-    free(ptr);
-}
-
 void register_builtin_types() {
     // The order of these shall match the pre-defined values of Type
     register_type("func", find_ref_value, nullptr);
     register_type("native", nullptr, nullptr);
-    register_type("str", nullptr, destructor_str);
+    register_type("str", nullptr, free);
 }
 
 namespace builtins { void define_all(Context &c); }
