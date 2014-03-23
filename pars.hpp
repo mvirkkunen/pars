@@ -44,8 +44,6 @@ class Context {
 
     Value eval_list(Value env, Value list);
 
-    Value apply(Value func, Value args);
-
     Value call_native_func(VoidFunc func, int nargs, Value *args);
 
     bool parse(char **source, Value &result);
@@ -72,6 +70,7 @@ public:
     Value env_get(Value env, Value key);
 
     Value eval(Value env, Value expr, bool tail_position = false);
+    Value apply(Value func, Value args);
 
     Value error(const char *msg, ...);
 

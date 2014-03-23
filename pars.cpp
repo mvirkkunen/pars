@@ -79,50 +79,180 @@ Value Context::str(const char *s) {
     return ptr(Type::str, str);
 }
 
-Value Context::apply(Value func, Value args) {
-    Value prev_cur_func = cur_func;
-    cur_func = func;
+Value Context::eval_list(Value env, Value list) {
+    Value result = nil, tail;
 
-    //printf("Stack depth: %10llu\n", (unsigned long long)&prev_cur_func);
-
-    Value value = func_val(func);
-
-    Value env = car(value),
-          arg_names = car(cdr(value)),
-          body = car(cdr(cdr(value)));
-
-    Value func_env = cons(env, nil);
-
-tail_call:
-    for (Value name = arg_names; is_cons(name); args = cdr(args), name = cdr(name)) {
-        if (!is_cons(args))
-            return error("Too few arguments for function");
-
-        env_define(func_env, car(name), car(args));
-    }
-
-    if (!is_nil(args))
-        return error("Too many arguments for function");
-
-    Value result = nil;
-    for (Value e = body; is_cons(e); e = cdr(e)) {
-        result = eval(func_env, car(e), is_nil(cdr(e)));
-
-        if (failing()) {
-            // TODO: maybe report function name for debugging?
+    for (; is_cons(list); list = cdr(list)) {
+        Value evaluated = eval(env, car(list));
+        if (failing())
             return nil;
-        }
 
-        if (will_tail_call) {
-            will_tail_call = false;
-            args = result;
-            goto tail_call;
+        Value new_tail = cons(evaluated, nil);
+
+        if (type_of(result) == Type::nil) {
+            result = tail = new_tail;
+        } else {
+            set_cdr(tail, new_tail);
+            tail = new_tail;
         }
     }
-
-    cur_func = prev_cur_func;
 
     return result;
+}
+
+Value Context::eval(Value env, Value expr, bool tail_position) {
+    switch (type_of(expr)) {
+        case Type::nil:
+        case Type::num:
+        case Type::str:
+            return expr;
+
+        case Type::sym:
+            return env_get(env, expr);
+
+        case Type::cons:
+        {
+            Value first = car(expr);
+
+            if (is_sym(first)) {
+                for (size_t i = 0; i < syntax.size(); i++) {
+                    if (syntax[i].sym == first)
+                        return syntax[i].func(*this, env, cdr(expr), tail_position);
+                }
+            }
+
+            Value evald = eval_list(env, expr);
+            if (failing())
+                return nil;
+
+            Value func = car(evald), args = cdr(evald);
+
+            if (tail_position && type_of(func) == Type::func && func == cur_func) {
+                will_tail_call = true;
+                return args;
+            }
+
+            return apply(func, args);
+        }
+
+        default:
+            return error("Invalid evaluation");
+    }
+}
+
+Value Context::call_native_func(VoidFunc func, int nargs, Value *args) {
+    switch (nargs) {
+        case 0: return ((Value (*)(Context &))func)(*this);
+
+        case 1: return ((Value (*)(Context &, Value))func)(*this, args[0]);
+
+        case 2: return ((Value (*)(Context &, Value, Value))func)(*this, args[0], args[1]);
+
+        case 3:
+            return ((Value (*)(Context &, Value, Value, Value))func)
+                (*this, args[0], args[1], args[2]);
+
+        case 4:
+            return ((Value (*)(Context &, Value, Value, Value, Value))func)
+                (*this, args[0], args[1], args[2], args[3]);
+
+        case 5:
+            return ((Value (*)(Context &, Value, Value, Value, Value, Value))func)
+                (*this, args[0], args[1], args[2], args[3], args[4]);
+
+        default: return error("Native func has too many arguments.");
+    }
+}
+
+Value Context::apply(Value func, Value args) {
+    switch(type_of(func))
+    {
+        case Type::func:
+        {
+            Value prev_cur_func = cur_func;
+            cur_func = func;
+
+            //printf("Stack depth: %10llu\n", (unsigned long long)&prev_cur_func);
+
+            Value result = nil;
+
+            Value value = func_val(func);
+
+            Value env = car(value),
+                  arg_names = car(cdr(value)),
+                  body = car(cdr(cdr(value)));
+
+            Value func_env = cons(env, nil);
+
+            tail_call:
+            for (Value name = arg_names; is_cons(name); args = cdr(args), name = cdr(name)) {
+                if (!is_cons(args)) {
+                    result = error("Too few arguments for function");
+                    goto out;
+                }
+
+                env_define(func_env, car(name), car(args));
+            }
+
+            if (!is_nil(args)) {
+                result = error("Too many arguments for function");
+                goto out;
+            }
+
+            for (Value e = body; is_cons(e); e = cdr(e)) {
+                result = eval(func_env, car(e), is_nil(cdr(e)));
+
+                if (failing())
+                    goto out;
+
+                if (will_tail_call) {
+                    will_tail_call = false;
+                    args = result;
+                    goto tail_call;
+                }
+            }
+
+            out:
+
+            cur_func = prev_cur_func;
+
+            return result;
+        }
+
+        case Type::native:
+        {
+            NativeInfo *info = (NativeInfo *)ptr_of(func);
+
+            int nargs = 0;
+            Value aargs[5];
+
+            for (int i = 0; i < info->nreq; i++) {
+                if (is_nil(args))
+                    return error("Too few arguments for function");
+
+                aargs[nargs++] = car(args);
+                args = cdr(args);
+            }
+
+            for (int i = 0; i < info->nopt; i++) {
+                if (!is_nil(args)) {
+                    aargs[nargs++] = car(args);
+                    args = cdr(args);
+                } else {
+                    aargs[nargs++] = nil;
+                }
+            }
+
+            if (info->has_rest)
+                aargs[nargs++] = args;
+            else if (!is_nil(args))
+                return error("Too many arguments for function");
+
+            return call_native_func(info->func, nargs, aargs);
+        }
+
+        default: return error("Invalid application");
+    }
 }
 
 static char *strslice(char *start, char *end) {
@@ -279,126 +409,6 @@ Value Context::env_get(Value env, Value key) {
         return env_get(car(env), key);
 
     return error("Not defined: '%s'", sym_name(key));
-}
-
-Value Context::eval_list(Value env, Value list) {
-    Value result = nil, tail;
-
-    for (; is_cons(list); list = cdr(list)) {
-        Value evaluated = eval(env, car(list));
-        if (failing())
-            return nil;
-
-        Value new_tail = cons(evaluated, nil);
-
-        if (type_of(result) == Type::nil) {
-            result = tail = new_tail;
-        } else {
-            set_cdr(tail, new_tail);
-            tail = new_tail;
-        }
-    }
-
-    return result;
-}
-
-Value Context::call_native_func(VoidFunc func, int nargs, Value *args) {
-    switch (nargs) {
-        case 0: return ((Value (*)(Context &))func)(*this);
-
-        case 1: return ((Value (*)(Context &, Value))func)(*this, args[0]);
-
-        case 2: return ((Value (*)(Context &, Value, Value))func)(*this, args[0], args[1]);
-
-        case 3:
-            return ((Value (*)(Context &, Value, Value, Value))func)
-                (*this, args[0], args[1], args[2]);
-
-        case 4:
-            return ((Value (*)(Context &, Value, Value, Value, Value))func)
-                (*this, args[0], args[1], args[2], args[3]);
-
-        case 5:
-            return ((Value (*)(Context &, Value, Value, Value, Value, Value))func)
-                (*this, args[0], args[1], args[2], args[3], args[4]);
-
-        default: return error("Native func has too many arguments.");
-    }
-}
-
-Value Context::eval(Value env, Value expr, bool tail_position) {
-    switch (type_of(expr)) {
-        case Type::nil:
-        case Type::num:
-        case Type::str:
-            return expr;
-
-        case Type::sym:
-            return env_get(env, expr);
-
-        case Type::cons:
-        {
-            Value first = car(expr);
-
-            if (is_sym(first)) {
-                for (size_t i = 0; i < syntax.size(); i++) {
-                    if (syntax[i].sym == first)
-                        return syntax[i].func(*this, env, cdr(expr), tail_position);
-                }
-            }
-
-            Value evald = eval_list(env, expr);
-            if (failing())
-                return nil;
-
-            Value func = car(evald), args = cdr(evald);
-
-            if (type_of(func) == Type::func) {
-                if (tail_position && func == cur_func) {
-                    will_tail_call = true;
-                    return args;
-                }
-
-                return apply(func, args);
-            }
-
-            if (type_of(func) == Type::native) {
-                NativeInfo *info = (NativeInfo *)ptr_of(func);
-
-                int nargs = 0;
-                Value aargs[5];
-
-                for (int i = 0; i < info->nreq; i++) {
-                    if (is_nil(args))
-                        return error("Too few arguments for function");
-
-                    aargs[nargs++] = car(args);
-                    args = cdr(args);
-                }
-
-                for (int i = 0; i < info->nopt; i++) {
-                    if (!is_nil(args)) {
-                        aargs[nargs++] = car(args);
-                        args = cdr(args);
-                    } else {
-                        aargs[nargs++] = nil;
-                    }
-                }
-
-                if (info->has_rest)
-                    aargs[nargs++] = args;
-                else if (!is_nil(args))
-                    return error("Too many arguments for function");
-
-                return call_native_func(info->func, nargs, aargs);
-            }
-
-            return error("Invalid application");
-        }
-
-        default:
-            return error("Invalid evaluation");
-    }
 }
 
 Value Context::error(const char *msg, ...) {
