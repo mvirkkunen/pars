@@ -53,9 +53,6 @@ struct TypeEntry {
     DestructorFunc destructor;
 };
 
-class Context;
-using BuiltinFunc = Value (*)(Context &ctx, Value args);
-
 const Value nil = (Value)0;
 
 inline Value car(Value cons) { return cons->car; }

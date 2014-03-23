@@ -8,8 +8,6 @@
 
 namespace pars {
 
-static bool is_initialized = false;
-
 static int find_ref_value(void *ptr, Value *refs) {
     refs[0] = (Value)ptr;
     return 1;
@@ -19,34 +17,16 @@ static void destructor_str(void *ptr) {
     free(ptr);
 }
 
-void initialize() {
-    if (is_initialized)
-        return;
-
+void register_builtin_types() {
     // The order of these shall match the pre-defined values of Type
-
-    // Immediate types
-    register_type("nil", nullptr, nullptr);
-    register_type("cons", nullptr, nullptr);
-    register_type("num", nullptr, nullptr);
-    register_type("sym", nullptr, nullptr);
-
-    // Actually tagged types
     register_type("func", find_ref_value, nullptr);
     register_type("builtin", nullptr, nullptr);
     register_type("str", nullptr, destructor_str);
-
-    is_initialized = true;
 }
 
 namespace builtins { void define_all(Context &c); }
 
 Context::Context() : alloc(1024) {
-    if (!is_initialized) {
-        fprintf(stderr, "Call pars::initialize() first");
-        exit(1);
-    }
-
     // Good enough for now
     alloc.mark_stack_top((void *)this);
 

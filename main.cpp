@@ -2,8 +2,6 @@
 #include "pars.hpp"
 
 int main(int argc, char **argv) {
-    pars::initialize();
-
     pars::Context ctx;
 
     if (argc > 1) {

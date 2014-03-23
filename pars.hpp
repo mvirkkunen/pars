@@ -6,14 +6,14 @@
 
 namespace pars {
 
-void initialize();
-
 struct String {
     int len;
     char data[];
 };
 
+class Context;
 using SyntaxFunc = Value (*)(Context &, Value, Value, bool);
+using BuiltinFunc = Value (*)(Context &ctx, Value args);
 
 class Context {
     struct SyntaxEntry {

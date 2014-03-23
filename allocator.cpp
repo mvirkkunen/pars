@@ -2,8 +2,9 @@
 #include <cstring>
 #include <malloc.h>
 #include <valgrind/memcheck.h>
+
 #include "allocator.hpp"
-#include "magic.hpp"
+#include "gcmagic.hpp"
 
 namespace pars {
 
