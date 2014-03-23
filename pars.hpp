@@ -104,3 +104,5 @@ inline char *str_data(Value str) {
 }
 
 }
+
+#include "builtins/generated.hpp"

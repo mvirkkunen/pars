@@ -20,8 +20,6 @@ void register_builtin_types() {
     register_type("str", nullptr, free);
 }
 
-namespace builtins { void define_all(Context &c); }
-
 Context::Context() : alloc(1024), cur_func(nil), will_tail_call(false) {
     // Good enough for now
     alloc.mark_stack_top((void *)this);
