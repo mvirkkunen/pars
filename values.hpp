@@ -18,9 +18,9 @@ enum class Type : uintptr_t  {
 
     // tagged:      x011
     // Rest of bits is a pointer to tagged value cell
-    func = 4,    // tagged.value = (list env arg_names body name)
-    builtin = 5, // tagged.builtin_func = ptr to func
-    str = 6,     // tagged.string = c-string
+    func = 4,    // ptr = (list env arg_names body name)
+    native = 5,  // fptr = ptr to func
+    str = 6,     // ptr = String instance
 };
 
 using VoidFunc = void (*)();

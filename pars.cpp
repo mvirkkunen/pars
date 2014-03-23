@@ -20,7 +20,7 @@ static void destructor_str(void *ptr) {
 void register_builtin_types() {
     // The order of these shall match the pre-defined values of Type
     register_type("func", find_ref_value, nullptr);
-    register_type("builtin", nullptr, nullptr);
+    register_type("native", nullptr, nullptr);
     register_type("str", nullptr, destructor_str);
 }
 
@@ -55,8 +55,8 @@ const char *Context::func_name(Value func) {
     return "<lambda>";
 }
 
-Value Context::builtin(BuiltinFunc func) {
-    return fptr(Type::builtin, (VoidFunc)func);
+Value Context::native(NativeFunc func) {
+    return fptr(Type::native, (VoidFunc)func);
 }
 
 Value Context::str(const char *s) {
@@ -330,8 +330,6 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
     switch (type_of(expr)) {
         case Type::nil:
         case Type::num:
-        //case Type::func:
-        //case Type::builtin:
         case Type::str:
             return expr;
 
@@ -364,8 +362,8 @@ Value Context::eval(Value env, Value expr, bool tail_position) {
                 return apply(func, args);
             }
 
-            if (type_of(func) == Type::builtin)
-                return builtin_val(func)(*this, args);
+            if (type_of(func) == Type::native)
+                return native_val(func)(*this, args);
 
             return error("eval: Invalid application");
         }
@@ -467,16 +465,12 @@ out:
     return true;
 }
 
-void Context::define_builtin(const char *name, BuiltinFunc func) {
-    env_define(root_env, sym(name), builtin(func));
+void Context::define_native(const char *name, NativeFunc func) {
+    env_define(root_env, sym(name), native(func));
 }
 
 void Context::define_syntax(const char *name, SyntaxFunc func) {
-    SyntaxEntry ent;
-    ent.sym = sym(name);
-    ent.func = func;
-
-    syntax.push_back(ent);
+    syntax.emplace_back(SyntaxEntry { sym(name), func });
 }
 
 Value Context::exec(char *code, bool report_errors, bool print_results) {
@@ -582,7 +576,7 @@ void Context::print(Value val, bool newline) {
             printf("%s", sym_name(val));
             break;
 
-        case Type::builtin:
+        case Type::native:
             printf("#BUILTIN");
             break;
 

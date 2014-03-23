@@ -13,7 +13,7 @@ struct String {
 
 class Context;
 using SyntaxFunc = Value (*)(Context &, Value, Value, bool);
-using BuiltinFunc = Value (*)(Context &ctx, Value args);
+using NativeFunc = Value (*)(Context &ctx, Value args);
 
 class Context {
     struct SyntaxEntry {
@@ -42,7 +42,7 @@ class Context {
 
     bool extract_one(Value arg, char type, void *dest);
 
-    Value builtin(BuiltinFunc func);
+    Value native(NativeFunc func);
 
 public:
     Context();
@@ -71,7 +71,7 @@ public:
 
     bool extract(Value args, const char *format, ...);
 
-    void define_builtin(const char *name, BuiltinFunc func);
+    void define_native(const char *name, NativeFunc func);
     void define_syntax(const char *name, SyntaxFunc func);
 
     Value exec(char *code, bool report_errors = false, bool print_results = false);
@@ -84,8 +84,8 @@ inline Value func_val(Value func) {
     return (Value)ptr_of(func);
 }
 
-inline BuiltinFunc builtin_val(Value builtin) {
-    return (BuiltinFunc)fptr_of(builtin);
+inline NativeFunc native_val(Value native) {
+    return (NativeFunc)fptr_of(native);
 }
 
 inline int str_len(Value str) {
