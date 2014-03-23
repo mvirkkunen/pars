@@ -4,12 +4,12 @@
 
 namespace pars { namespace builtins {
 
-BUILTIN("print", print, (Context &c, Value args), 0, 0, 1) {
-    for (Value item = args; is_cons(item); item = cdr(item)) {
-        if (type_of(car(item)) == Type::str) {
-            printf("%.*s", str_len(car(item)), str_data(car(item)));
+BUILTIN("print") print(Context &c, Value rest) {
+    for (; is_cons(rest); rest = cdr(rest)) {
+        if (type_of(car(rest)) == Type::str) {
+            printf("%.*s", str_len(car(rest)), str_data(car(rest)));
         } else {
-            c.print(car(item), false);
+            c.print(car(rest), false);
             printf(" ");
         }
     }

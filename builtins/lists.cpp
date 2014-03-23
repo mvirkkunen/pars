@@ -2,13 +2,41 @@
 
 namespace pars { namespace builtins {
 
-BUILTIN("list", list, (Context &c, Value rest), 0, 0, 1) {
+BUILTIN("nil?") nil_p(Context &c, Value val) {
+    (void)c;
+
+    return c.boolean(is_nil(val));
+}
+
+BUILTIN("cons") cons(Context &c, Value car, Value cdr) {
+    return c.cons(car, cdr);
+}
+
+BUILTIN("cons?") cons_p(Context &c, Value val) {
+    return c.boolean(is_cons(val));
+}
+
+BUILTIN("car") car(Context &c, Value cons) {
+    (void)c;
+    VERIFY_ARG_CONS(cons, 1);
+
+    return car(cons);
+}
+
+BUILTIN("cdr") cdr(Context &c, Value cons) {
+    (void)c;
+    VERIFY_ARG_CONS(cons, 1);
+
+    return cdr(cons);
+}
+
+BUILTIN("list") list(Context &c, Value rest) {
     (void)c;
 
     return rest;
 }
 
-BUILTIN("list-ref", list_ref, (Context &c, Value list, Value index), 2, 0, 0) {
+BUILTIN("list-ref") list_ref(Context &c, Value list, Value index) {
     VERIFY_ARG_LIST(list, 1);
     VERIFY_ARG_NUM(index, 2);
 
@@ -20,7 +48,7 @@ BUILTIN("list-ref", list_ref, (Context &c, Value list, Value index), 2, 0, 0) {
     return c.error("list-ref: Index out of range");
 }
 
-BUILTIN("length", length, (Context &c, Value list), 1, 0, 0) {
+BUILTIN("length") length(Context &c, Value list) {
     VERIFY_ARG_LIST(list, 1);
 
     int len = 0;

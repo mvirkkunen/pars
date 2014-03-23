@@ -2,7 +2,7 @@
 
 namespace pars { namespace builtins {
 
-SYNTAX("quote", quote) {
+SYNTAX("quote") quote(Context &c, Value env, Value args, bool tail_position) {
     (void)c;
     (void)env;
     (void)tail_position;
@@ -10,11 +10,34 @@ SYNTAX("quote", quote) {
     return car(args);
 }
 
-SYNTAX("define", define) {
+SYNTAX("begin") begin(Context &c, Value env, Value args, bool tail_position) {
+    Value result = nil;
+
+    for (; is_cons(args); args = cdr(args)) {
+        result = c.eval(env, car(args), tail_position && is_nil(cdr(args)));
+        if (c.failing())
+            return nil;
+    }
+
+    return result;
+}
+
+// (if test then else)
+SYNTAX("if") if_(Context &c, Value env, Value args, bool tail_position) {
+    Value res = c.eval(env, car(args));
+    if (c.failing())
+        return nil;
+
+    return is_truthy(res)
+        ? c.eval(env, car(cdr(args)), tail_position)
+        : c.eval(env, car(cdr(cdr(args))), tail_position);
+}
+
+SYNTAX("define") define(Context &c, Value env, Value args, bool tail_position) {
     (void)tail_position;
 
     if (!is_cons(args))
-        return nil;
+        return c.error("Invalid definition");
 
     Value name = car(args);
     args = cdr(args);
@@ -39,7 +62,7 @@ SYNTAX("define", define) {
 }
 
 // (lambda (x y) body)
-SYNTAX("lambda", lambda) {
+SYNTAX("lambda") lambda(Context &c, Value env, Value args, bool tail_position) {
     (void)tail_position;
 
     return c.func(
@@ -47,17 +70,6 @@ SYNTAX("lambda", lambda) {
         car(args),
         cdr(args),
         nil);
-}
-
-// (if test then else)
-SYNTAX("if", if_) {
-    Value res = c.eval(env, car(args));
-    if (c.failing())
-        return nil;
-
-    return is_truthy(res)
-        ? c.eval(env, car(cdr(args)), tail_position)
-        : c.eval(env, car(cdr(cdr(args))), tail_position);
 }
 
 } }

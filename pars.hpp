@@ -61,10 +61,13 @@ public:
     Value num(int num) { return alloc.num(num); }
     Value ptr(Type type, void *ptr) { return alloc.ptr(type, ptr); }
 
+    Value boolean(bool v) { return v ? num(1) : nil; }
+
     Value func(Value env, Value arg_names, Value body, Value name);
     const char *func_name(Value func);
     Value str(const char *s);
 
+    inline Value make_env(Value parent) { return cons(parent, nil); }
     void env_define(Value env, Value key, Value value);
     void env_undefine(Value env, Value key);
     Value env_get(Value env, Value key);

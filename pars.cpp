@@ -22,13 +22,13 @@ void register_builtin_types() {
 
 namespace builtins { void define_all(Context &c); }
 
-Context::Context() : alloc(1024) {
+Context::Context() : alloc(1024), cur_func(nil), will_tail_call(false) {
     // Good enough for now
     alloc.mark_stack_top((void *)this);
 
     reset();
 
-    root_env = cons(nil, nil);
+    root_env = make_env(nil);
     alloc.pin(root_env);
 
     builtins::define_all(*this);
@@ -182,7 +182,7 @@ Value Context::apply(Value func, Value args) {
                   arg_names = car(cdr(value)),
                   body = car(cdr(cdr(value)));
 
-            Value func_env = cons(env, nil);
+            Value func_env = make_env(env);
 
             tail_call:
             for (Value name = arg_names; is_cons(name); args = cdr(args), name = cdr(name)) {
@@ -366,8 +366,6 @@ bool Context::parse(char **source, Value &result) {
 }
 
 void Context::reset() {
-    cur_func = nil;
-    will_tail_call = false;
     _failing = false;
 }
 
