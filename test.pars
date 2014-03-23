@@ -1,14 +1,72 @@
-(define (fact1 x)
-  (if (= x 0) 1
-      (* x (fact1 (- x 1)))))
+(define test-errors 0)
+(define test-results '())
+(define test-current "?")
 
-(define (fact2 x)
-  (define (fact-tail x accum)
-    (if (= x 0) accum
-        (fact-tail (- x 1) (* x accum))))
-  (fact-tail x 1))
+(define (test name func)
+  (set! test-current name)
+  (func)
+  (set! test-current "?"))
 
-(print "factorial of 10, recursive: " (fact1 10))
-(print "factorial of 10, iterative: " (fact2 10))
+(define (test-success msg)
+  (set! test-results
+        (cons (str-cat "OK   " test-current ": " msg) test-results)))
 
-(print (str-cat "Hello, " "world!"))
+(define (test-error msg)
+  (set! test-errors (+ test-errors 1))
+  (set! test-results
+        (cons (str-cat "FAIL " test-current ": " msg) test-results)))
+
+(define (assert v msg)
+  (if v
+      (test-success msg)
+      (test-error msg)))
+
+(define (assert-equal a b msg)
+  (assert (equal? a b)
+          (str-cat msg ", got: " (->string a) " expected: " (->string b))))
+
+(define (test-report)
+  (print "TEST REPORT")
+  (print "-----------")
+  (print)
+  (print "Total tests: " (length test-results))
+  (print "Errors:      " test-errors)
+
+  (define (print-results res)
+    (if (not (nil? res))
+        (begin (print (car res))
+               (print-results (cdr res)))))
+
+  (print-results test-results))
+
+(test "factorials" (lambda ()
+  (define (fact1 x)
+    (if (= x 0) 1
+        (* x (fact1 (- x 1)))))
+
+  (define (fact2 x)
+    (define (fact-tail x accum)
+      (if (= x 0) accum
+          (fact-tail (- x 1) (* x accum))))
+    (fact-tail x 1))
+
+  (assert (equal? (fact1 10) 3628800) "10! recursive")
+  (assert-equal (fact1 10) 3628800 "10! iterative")))
+
+(test "strings" (lambda()
+  (define hello "Hello, world!")
+
+  (assert-equal hello "Hello, world!" "string is equal to self")
+
+  (assert-equal (str-len hello) 13 "string length")
+
+  (assert-equal (str-index-of hello "llo") 2 "index-of found")
+
+  (assert-equal (str-index-of hello "barf") -1 "index-of not found")
+
+  (assert-equal (str-sub hello 7) "world!" "sub without length")
+  (assert-equal (str-sub hello 7 2) "wo" "sub with length")
+
+  (assert-equal (str-cat hello " Hi!") "Hello, world! Hi!" "cat")))
+
+(test-report)
