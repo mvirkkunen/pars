@@ -52,8 +52,6 @@ public:
 
     Value cons(Value car, Value cdr) { return alloc.cons(car, cdr); }
     Value num(int num) { return alloc.num(num); }
-    Value sym(const char *name) { return alloc.sym(name); }
-    const char *sym_name(Value sym) { return alloc.sym_name(sym); }
     Value ptr(Type type, void *ptr) { return alloc.ptr(type, ptr); }
     Value fptr(Type type, VoidFunc fptr) { return alloc.fptr(type, fptr); }
 

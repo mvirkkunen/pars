@@ -1,17 +1,19 @@
 #include <vector>
-#include <cstdio>
+#include <cstring>
 #include "values.hpp"
 
 namespace pars {
 
+static std::vector<const char *> sym_names;
+
+static std::vector<TypeEntry> types;
+
 void register_builtin_types();
 
-static std::vector<TypeEntry> types_;
-
-static std::vector<TypeEntry> &types() {
-    if (types_.size() == 0) {
+static std::vector<TypeEntry> &ensure_types() {
+    if (types.size() == 0) {
         // Immediate types
-        types_.emplace_back(TypeEntry { "nil", nullptr, nullptr });
+        types.emplace_back(TypeEntry { "nil", nullptr, nullptr });
         register_type("cons", nullptr, nullptr);
         register_type("num", nullptr, nullptr);
         register_type("sym", nullptr, nullptr);
@@ -19,7 +21,7 @@ static std::vector<TypeEntry> &types() {
         register_builtin_types();
     }
 
-    return types_;
+    return types;
 }
 
 inline Type tagged_type(Value val) {
@@ -44,17 +46,45 @@ Type type_of(Value val) {
 }
 
 const char *type_name(Type t) {
-    return types()[(size_t)t].name;
+    return ensure_types()[(size_t)t].name;
 }
 
 Type register_type(const char *name, FindRefsFunc find_refs, DestructorFunc destructor) {
-    types().emplace_back(TypeEntry { name, find_refs, destructor });
+    ensure_types().emplace_back(TypeEntry { name, find_refs, destructor });
 
-    return (Type)(types().size() - 1);
+    return (Type)(ensure_types().size() - 1);
 }
 
 TypeEntry *get_type_entry(Type t) {
-    return &types()[(size_t)t];
+    return &ensure_types()[(size_t)t];
+}
+
+Value sym(const char *name) {
+    int id = -1;
+
+    for (size_t i = 0; i < sym_names.size(); i++) {
+        if (!strcmp(sym_names[i], name)) {
+            id = (int)i;
+            break;
+        }
+    }
+
+    if (id == -1) {
+        id = sym_names.size();
+
+        char *copy = (char *)malloc(strlen(name) + 1);
+        strcpy(copy, name);
+
+        sym_names.push_back(copy);
+    }
+
+    return (Value)(((uintptr_t)id << 2) | 0x2);
+}
+
+const char *sym_name(Value sym) {
+    int id = sym_val(sym);
+
+    return (id < (int)sym_names.size()) ? sym_names[id] : "<sym!?>";
 }
 
 }

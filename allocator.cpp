@@ -207,9 +207,6 @@ Allocator::~Allocator() {
         free(c->marks);
         free(c);
     }
-
-    for (size_t i = 0; i < sym_names.size(); i++)
-        free((void *)sym_names[i]);
 }
 
 void Allocator::mark_stack_top(void *stack_top) {
@@ -250,34 +247,6 @@ void Allocator::new_chunk() {
     c->marks = (char *)malloc(size / 8 + 1);
 
     chunks.push_back(c);
-}
-
-Value Allocator::sym(const char *name) {
-    int id = -1;
-
-    for (size_t i = 0; i < sym_names.size(); i++) {
-        if (!strcmp(sym_names[i], name)) {
-            id = (int)i;
-            break;
-        }
-    }
-
-    if (id == -1) {
-        id = sym_names.size();
-
-        char *copy = (char *)malloc(strlen(name) + 1);
-        strcpy(copy, name);
-
-        sym_names.push_back(copy);
-    }
-
-    return (Value)(((uintptr_t)id << 2) | 0x2);
-}
-
-const char *Allocator::sym_name(Value sym) {
-    int id = sym_val(sym);
-
-    return (id < (int)sym_names.size()) ? sym_names[id] : "<sym!?>";
 }
 
 static inline Value tag(Value val, Type type) {

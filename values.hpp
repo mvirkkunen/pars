@@ -64,6 +64,10 @@ inline int num_val(Value num) {
     return (int)((uintptr_t)num & 0xFFFFFFFC) >> 2;
 }
 
+Value sym(const char *name);
+
+const char *sym_name(Value sym);
+
 inline int sym_val(Value sym) {
     return ((uintptr_t)sym & 0xFFFFFFFC) >> 2;
 }

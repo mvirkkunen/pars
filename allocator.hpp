@@ -14,8 +14,6 @@ class Allocator {
         char *marks;
     };
 
-    std::vector<const char *> sym_names;
-
     int size;
     std::vector<Chunk *> chunks;
 
@@ -49,9 +47,6 @@ public:
     Value num(int num) {
         return (Value)((uintptr_t)(num << 2) | 0x1);
     }
-
-    Value sym(const char *name);
-    const char *sym_name(Value sym);
 
     Value ptr(Type type, void *ptr);
     Value fptr(Type type, VoidFunc fptr);
