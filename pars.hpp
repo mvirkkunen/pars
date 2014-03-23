@@ -69,6 +69,7 @@ public:
     const char *func_name(Value func);
     Value str(const char *s);
     Value str(const char *s, int len);
+    Value str(String *s) { return ptr(Type::str, s); }
     Value str_empty() { return _str_empty; }
 
     inline Value make_env(Value parent) { return cons(parent, nil); }
@@ -102,6 +103,9 @@ inline int str_len(Value str) {
 inline char *str_data(Value str) {
     return ((String *)ptr_of(str))->data;
 }
+
+void string_realloc(String **s, int len);
+inline String *string_alloc(int len) { String *s = nullptr; string_realloc(&s, len); return s; }
 
 }
 

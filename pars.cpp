@@ -79,7 +79,7 @@ Value Context::str(const char *s, int len) {
     memcpy(str->data, s, len);
     str->data[len] = '\0';
 
-    return ptr(Type::str, str);
+    return this->str(str);
 }
 
 Value Context::eval_list(Value env, Value list) {
@@ -554,6 +554,11 @@ void Context::print(Value val, bool newline) {
 
     if (newline)
         printf("\n");
+}
+
+void string_realloc(String **s, int len) {
+    *s = (String *)realloc((void *)*s, sizeof(String) + len + 1);
+    (*s)->data[len] = '\0';
 }
 
 }

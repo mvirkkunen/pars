@@ -17,12 +17,10 @@ BUILTIN("str-make") str(Context &c, Value chr_, Value _len_) {
         len = num_val(_len_);
     }
 
-    String *str = (String *)malloc(sizeof(String) + len + 1);
-    str->len = len;
+    String *str = string_alloc(len);
     memset(str->data, num_val(chr_), len);
-    str->data[len] = '\0';
 
-    return c.ptr(Type::str, str);
+    return c.str(str);
 }
 
 BUILTIN("str-len") str_len_(Context &c, Value str) {
@@ -75,7 +73,7 @@ BUILTIN("str-cat") str_cat(Context &c, Value rest) {
         if (slen == 0)
             continue;
 
-        str = (String *)realloc((void *)str, sizeof(String) + len + slen + 1);
+        string_realloc(&str, len + slen);
         memcpy(str->data + len, str_data(car(rest)), slen);
 
         len += slen;
