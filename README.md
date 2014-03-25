@@ -8,4 +8,4 @@ optimization and a conservative garbage collector which probably doesn't work co
 TODO
 ----
 
-* Write more builtins and a more interesting test program.
+* Better error reporting for crying out loud...

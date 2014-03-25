@@ -1,0 +1,23 @@
+(define (acons al, key value) (cons (cons key value) al))
+
+(define (assoc-ref al key)
+  (if (nil? al)
+      '()
+      (if (equal? key (caar al))
+          (cdar al)
+          (assoc-ref (cdr al) key))))
+
+(define (assoc-set! al key value)
+  (if (nil? al)
+      (acons key value al)
+      (if (equal? key (caar al))
+          (begin (set-cdr! (car al) value)
+                 al)
+          (assoc-set! (cdr al) key value))))
+
+(define (assoc-remove! al key)
+  (if (nil? al)
+      al
+      (if (equal? key (caar al))
+          (assoc-remove! (cddr al) key)
+          (assoc-remove! (cdr al) key))))

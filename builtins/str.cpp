@@ -83,9 +83,6 @@ BUILTIN("str-cat") str_cat(Context &c, Value rest) {
     if (str == nullptr)
         return c.str_empty();
 
-    str->len = len;
-    str->data[len] = '\0';
-
     return c.ptr(Type::str, str);
 }
 
@@ -112,7 +109,7 @@ BUILTIN("str-index-of") str_index_of(Context &c, Value str_, Value find_, Value 
         if (str[i] == find[fi]) {
             fi++;
             if (fi == findl)
-                return c.num(i);
+                return c.num(i - findl + 1);
         } else {
             fi = 0;
         }
@@ -177,6 +174,12 @@ BUILTIN("->string") to_string(Context &c, Value val) {
             return c.str(type_name(type_of(val)));
             break;
     }
+}
+
+BUILTIN("string->num") string_to_num(Context &c, Value str) {
+    VERIFY_ARG_STR(str, 1);
+
+    return c.num(atoi(str_data(str)));
 }
 
 } }

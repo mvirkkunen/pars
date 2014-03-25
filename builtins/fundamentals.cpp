@@ -4,6 +4,18 @@
 
 namespace pars { namespace builtins {
 
+BUILTIN("error") error(Context &c, Value msg) {
+    VERIFY_ARG_STR(msg, 1);
+
+    return c.error(str_data(msg));
+}
+
+BUILTIN("include") include(Context &c, Value path) {
+    VERIFY_ARG_STR(path, 1);
+
+    return c.exec_file(str_data(path));
+}
+
 BUILTIN("nil?") nil_p(Context &c, Value val) {
     (void)c;
 

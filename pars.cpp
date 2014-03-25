@@ -21,20 +21,26 @@ void register_builtin_types() {
 }
 
 Context::Context() : alloc(1024), cur_func(nil), will_tail_call(false) {
-    // Good enough for now
+    // TODO: Good enough for now
     alloc.mark_stack_top((void *)this);
-
-    reset();
 
     root_env = make_env(nil);
     alloc.pin(root_env);
 
     _str_empty = str("");
+    alloc.pin(_str_empty);
 
     builtins::define_all(*this);
 
     env_define(root_env, sym("true"), boolean(true));
     env_define(root_env, sym("false"), boolean(false));
+
+    // TODO: This needs a safer path
+    reset();
+    exec_file("library/index.pars");
+
+    if (failing())
+        print_error();
 }
 
 Value Context::func(Value env, Value arg_names, Value body, Value name) {
@@ -171,16 +177,16 @@ Value Context::call_native_func(VoidFunc func, int nargs, Value *args) {
 }
 
 Value Context::apply(Value func, Value args) {
-    switch(type_of(func))
-    {
+    Value prev_cur_func = cur_func;
+
+    Value result;
+
+    switch(type_of(func)) {
         case Type::func:
         {
-            Value prev_cur_func = cur_func;
-            cur_func = func;
-
             //printf("Stack depth: %10llu\n", (unsigned long long)&prev_cur_func);
 
-            Value result = nil;
+            cur_func = func;
 
             Value value = func_val(func);
 
@@ -194,7 +200,7 @@ Value Context::apply(Value func, Value args) {
             for (Value name = arg_names; is_cons(name); args = cdr(args), name = cdr(name)) {
                 if (!is_cons(args)) {
                     result = error("Too few arguments for function");
-                    goto out;
+                    goto func_out;
                 }
 
                 env_define(func_env, car(name), car(args));
@@ -202,14 +208,14 @@ Value Context::apply(Value func, Value args) {
 
             if (!is_nil(args)) {
                 result = error("Too many arguments for function");
-                goto out;
+                goto func_out;
             }
 
             for (Value e = body; is_cons(e); e = cdr(e)) {
                 result = eval(func_env, car(e), is_nil(cdr(e)));
 
                 if (failing())
-                    goto out;
+                    goto func_out;
 
                 if (will_tail_call) {
                     will_tail_call = false;
@@ -218,15 +224,20 @@ Value Context::apply(Value func, Value args) {
                 }
             }
 
-            out:
+            func_out:
 
-            cur_func = prev_cur_func;
+            if (failing()) {
+                strcat(_fail_message, "\n  in function ");
+                strcat(_fail_message, func_name(func));
+            }
 
-            return result;
+            break;
         }
 
         case Type::native:
         {
+            cur_func = nil;
+
             NativeInfo *info = (NativeInfo *)ptr_of(func);
 
             int nargs = 0;
@@ -254,11 +265,22 @@ Value Context::apply(Value func, Value args) {
             else if (!is_nil(args))
                 return error("Too many arguments for function");
 
-            return call_native_func(info->func, nargs, aargs);
+            result = call_native_func(info->func, nargs, aargs);
+
+            if (failing()) {
+                strcat(_fail_message, "\n  in function ");
+                strcat(_fail_message, info->name);
+            }
+
+            break;
         }
 
         default: print(func); print(args); return error("Invalid application");
     }
+
+    cur_func = prev_cur_func;
+
+    return result;
 }
 
 static char *strslice(char *start, char *end) {
@@ -460,6 +482,10 @@ Value Context::error(const char *msg, ...) {
     return nil;
 }
 
+void Context::define(const char *name, Value val) {
+    env_define(root_env, sym(name), val);
+}
+
 void Context::define_native(const char *name, NativeInfo *info) {
     env_define(root_env, sym(name), native(info));
 }
@@ -493,15 +519,15 @@ Value Context::exec(char *code, bool report_errors, bool print_results) {
     }
 
     if (failing() && report_errors)
-        fprintf(stderr, "Error: %s\n", _fail_message);
+        print_error();
 
     return result;
 }
 
-Value Context::exec_file(char *path, bool report_errors, bool print_results) {
+Value Context::exec_file(const char *path, bool report_errors, bool print_results) {
     FILE *f = fopen(path, "r");
     if (!f)
-        return nil;
+        return error("Could not open file: '%s'", path);
 
     fseek(f, 0, SEEK_END);
     size_t length = ftell(f);
@@ -592,8 +618,13 @@ void Context::print(Value val, bool newline) {
         printf("\n");
 }
 
+void Context::print_error() {
+    fprintf(stderr, "Error: %s\n", _fail_message);
+}
+
 void string_realloc(String **s, int len) {
     *s = (String *)realloc((void *)*s, sizeof(String) + len + 1);
+    (*s)->len = len;
     (*s)->data[len] = '\0';
 }
 

@@ -62,6 +62,9 @@ inline Value cadr(Value cons) { return car(cdr(cons)); }
 inline Value cdar(Value cons) { return cdr(car(cons)); }
 inline Value cddr(Value cons) { return cdr(cdr(cons)); }
 
+inline Value caaar(Value cons) { return car(car(car(cons))); }
+inline Value caadr(Value cons) { return car(car(cdr(cons))); }
+inline Value cadar(Value cons) { return car(cdr(car(cons))); }
 inline Value caddr(Value cons) { return car(cdr(cdr(cons))); }
 inline Value cadddr(Value cons) { return car(cdr(cdr(cdr(cons)))); }
 

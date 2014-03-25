@@ -1,0 +1,4 @@
+(define (caar c) (car (car c)))
+(define (cadr c) (car (cdr c)))
+(define (cdar c) (cdr (car c)))
+(define (cddr c) (cdr (cdr c)))

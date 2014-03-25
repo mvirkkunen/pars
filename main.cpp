@@ -5,8 +5,14 @@ int main(int argc, char **argv) {
     pars::Context ctx;
 
     if (argc > 1) {
-        for (int i = 1; i < argc; i++)
-            ctx.exec_file(argv[i], true);
+        pars::Value args = pars::nil;
+
+        for (int i = argc - 1; i >= 2; i--)
+            args = ctx.cons(ctx.str(argv[i]), args);
+
+        ctx.define("argv", args);
+
+        ctx.exec_file((const char *)argv[1], true);
     } else {
         ctx.repl();
     }

@@ -38,6 +38,60 @@ SYNTAX("if") if_(Context &c, Value env, Value args, bool tail_position) {
         : nil;
 }
 
+SYNTAX("and") and_(Context &c, Value env, Value args, bool tail_position) {
+    (void)tail_position;
+
+    for (; is_cons(args); args = cdr(args)) {
+        Value res = c.eval(env, car(args));
+        if (c.failing())
+            return nil;
+
+        if (!is_truthy(res))
+            return c.boolean(false);
+    }
+
+    return c.boolean(true);
+}
+
+SYNTAX("or") or_(Context &c, Value env, Value args, bool tail_position) {
+    (void)tail_position;
+
+    for (; is_cons(args); args = cdr(args)) {
+        Value res = c.eval(env, car(args));
+        if (c.failing())
+            return nil;
+
+        if (is_truthy(res))
+            return c.boolean(true);
+    }
+
+    return c.boolean(false);
+}
+
+SYNTAX("let") let(Context &c, Value env, Value args, bool tail_position) {
+    if (is_nil(args) || !is_cons(car(args)) || is_nil(cdr(args)))
+        return c.error("Invalid let");
+
+    Value new_env = c.make_env(env);
+
+    Value item = car(args);
+    for (; is_cons(item); item = cdr(item)) {
+        if (!is_cons(car(item)) || !is_sym(caar(item)) || is_nil(cdar(item)))
+            return c.error("Invalid let");
+
+        Value val = c.eval(new_env, cadar(item));
+        if (c.failing())
+            return nil;
+
+        c.env_define(new_env, caar(item), val);
+    }
+
+    if (!is_nil(item))
+        return c.error("Invalid let");
+
+    return begin(c, new_env, cdr(args), tail_position);
+}
+
 SYNTAX("define") define(Context &c, Value env, Value args, bool tail_position) {
     (void)tail_position;
 
@@ -60,7 +114,7 @@ SYNTAX("define") define(Context &c, Value env, Value args, bool tail_position) {
                 env,
                 cdr(name),
                 args,
-                name));
+                car(name)));
     }
 
     return nil;

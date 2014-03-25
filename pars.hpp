@@ -40,6 +40,8 @@ class Context {
     bool will_tail_call;
 
     bool _failing;
+
+    // more than likely to overflow
     char _fail_message[1024];
 
     void reset();
@@ -83,14 +85,16 @@ public:
 
     Value error(const char *msg, ...);
 
+    void define(const char *name, Value value);
     void define_native(const char *name, NativeInfo *info);
     void define_native(const char *name, int nreq, int nopt, bool has_rest, VoidFunc func);
     void define_syntax(const char *name, SyntaxFunc func);
 
     Value exec(char *code, bool report_errors = false, bool print_results = false);
-    Value exec_file(char *path, bool report_errors = false, bool print_results = false);
+    Value exec_file(const char *path, bool report_errors = false, bool print_results = false);
     void repl();
     void print(Value val, bool newline = true);
+    void print_error();
 };
 
 inline Value func_val(Value func) {

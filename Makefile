@@ -18,6 +18,9 @@ test: pars test.pars
 check: pars test.pars
 	valgrind --leak-check=full ./pars test.pars
 
+run: pars
+	./pars
+
 $(GEN_SRCS): $(BUILTIN_SRCS)
 	./genbuiltins.sh
 
